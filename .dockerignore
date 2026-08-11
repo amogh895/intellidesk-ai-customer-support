@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git
+.github
+.env
+venv/
+.venv/
+chroma_db/
+chroma_db_eval_*
+evaluation/*.csv
+evaluation/*.md
+.pytest_cache/
+.vscode/
+.idea/

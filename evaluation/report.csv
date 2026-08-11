@@ -1,0 +1,4 @@
+chunk_size,overlap,retrieval_accuracy,avg_confidence,faithfulness,db_path
+300,50,93.33,40.2,95.0,chroma_db_eval_300_50
+500,100,100.0,34.87,95.0,chroma_db_eval_500_100
+800,150,100.0,27.93,95.0,chroma_db_eval_800_150
