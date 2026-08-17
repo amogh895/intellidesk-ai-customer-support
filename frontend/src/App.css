@@ -1952,6 +1952,216 @@ body {
   border: 1px solid #fecaca;
 }
 
+/* ═══════════ VOICE INTEGRATION & AUDIO STYLING ═══════════ */
+
+/* Microphone Action Button */
+.mic-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background-color: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  user-select: none;
+}
+
+.mic-btn:hover {
+  background-color: #e2e8f0;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.mic-btn-recording {
+  background-color: #ef4444 !important;
+  color: #ffffff !important;
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.25);
+  animation: pulseRecording 1.5s infinite;
+}
+
+@keyframes pulseRecording {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+/* Audio Waveform Equalizer Animation */
+.audio-wave-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 16px;
+  margin-left: 4px;
+}
+
+.audio-wave-bar {
+  width: 3px;
+  height: 100%;
+  background-color: currentColor;
+  border-radius: 2px;
+  animation: waveBar 1.2s ease-in-out infinite;
+}
+
+.audio-wave-bar:nth-child(1) { animation-delay: 0.0s; height: 35%; }
+.audio-wave-bar:nth-child(2) { animation-delay: 0.2s; height: 85%; }
+.audio-wave-bar:nth-child(3) { animation-delay: 0.4s; height: 100%; }
+.audio-wave-bar:nth-child(4) { animation-delay: 0.6s; height: 50%; }
+
+@keyframes waveBar {
+  0%, 100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+/* TTS Speaker / Read Aloud Button */
+.btn-voice-speak {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background-color: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-voice-speak:hover {
+  background-color: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+
+.btn-voice-speak.speaking {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+  border-color: #93c5fd;
+}
+
+/* Live Voice Transcription Preview Ribbon */
+.live-voice-preview {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.06) 0%, rgba(249, 115, 22, 0.06) 100%);
+  border: 1px dashed rgba(239, 68, 68, 0.4);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  color: #b91c1c;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.live-voice-preview-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+/* Inline Voice Mic in Search Bar */
+.input-with-mic-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.input-with-mic-wrapper input {
+  width: 100%;
+  padding-right: 44px !important;
+}
+
+.mic-search-btn {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.mic-search-btn:hover {
+  color: #2563eb;
+  background-color: #f1f5f9;
+}
+
+.mic-search-btn.recording {
+  color: #ef4444;
+  background-color: #fee2e2;
+  animation: pulseRecording 1.5s infinite;
+}
+
+/* Speech Bubble Speaker Action */
+.transcript-bubble {
+  position: relative;
+}
+
+.transcript-audio-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.72rem;
+  color: #64748b;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.transcript-bubble:hover .transcript-audio-btn {
+  opacity: 1;
+}
+
+.transcript-audio-btn:hover {
+  color: #2563eb;
+  background: #ffffff;
+}
+
+/* Voice Warning Banner */
+.voice-warning-toast {
+  margin: 10px 0;
+  padding: 8px 12px;
+  background-color: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+
 
 
 

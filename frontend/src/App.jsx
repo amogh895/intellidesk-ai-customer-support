@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useVoice } from './hooks/useVoice';
 import './App.css';
 
 const BACKEND_URL = "http://127.0.0.1:8001";
@@ -309,6 +310,23 @@ export default function App() {
 
   // Language Driver
   const [copilotLang, setCopilotLang] = useState('English');
+
+  // Voice Integration Engine (STT & TTS)
+  const {
+    isSTTSupported,
+    isTTSSupported,
+    isListening,
+    interimTranscript,
+    startListening,
+    stopListening,
+    isSpeaking,
+    speakingTextId,
+    speak,
+    stopSpeaking,
+    voiceError,
+    setVoiceError,
+  } = useVoice();
+  const [activeMicTarget, setActiveMicTarget] = useState(null); // 'caller' | 'search' | null
 
   // Persistent Session Customer Context
   const [crmInput, setCrmInput] = useState('CRM-103');
@@ -984,6 +1002,46 @@ export default function App() {
       reqDocs,
       alerts
     });
+  };
+
+  // ─── VOICE INTERACTION HANDLERS ───
+  const handleToggleCallerMic = () => {
+    if (isListening && activeMicTarget === 'caller') {
+      stopListening();
+      setActiveMicTarget(null);
+    } else {
+      setActiveMicTarget('caller');
+      startListening({
+        language: copilotLang,
+        onInterimResult: (text) => setLiveStatementInput(text),
+        onFinalResult: (text) => {
+          setLiveStatementInput(text);
+          handleAddStatement(text);
+          setActiveMicTarget(null);
+        }
+      });
+    }
+  };
+
+  const handleToggleSearchMic = () => {
+    if (isListening && activeMicTarget === 'search') {
+      stopListening();
+      setActiveMicTarget(null);
+    } else {
+      setActiveMicTarget('search');
+      startListening({
+        language: copilotLang,
+        onInterimResult: (text) => setChatInput(text),
+        onFinalResult: (text) => {
+          setChatInput(text);
+          setActiveMicTarget(null);
+        }
+      });
+    }
+  };
+
+  const handleSpeakText = (text, id) => {
+    speak(text, { id, language: copilotLang });
   };
 
   // ─── RAG KNOWLEDGE BASE QUERY ───
@@ -2369,13 +2427,42 @@ export default function App() {
 
                 {/* Call Transcript Simulator */}
                 <div className="claims-summary-section" style={{ marginTop: '24px' }}>
-                  <h4>Live Conversation Transcript</h4>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <h4>Live Conversation Transcript</h4>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      🎤 Voice Active ({copilotLang})
+                    </span>
+                  </div>
+
+                  {voiceError && (
+                    <div className="voice-warning-toast">
+                      <span>⚠️ {voiceError}</span>
+                      <button 
+                        type="button" 
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }} 
+                        onClick={() => setVoiceError(null)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+
                   <div className="scrolling-transcript-panel" style={{ maxHeight: '240px', margin: '12px 0' }}>
                     {conversation.length === 0 ? (
-                      <div className="empty-chat" style={{ height: '90px' }}><p>Simulate caller speech below to test Agent Assist reasoning.</p></div>
+                      <div className="empty-chat" style={{ height: '90px' }}>
+                        <p>Simulate caller speech below using your <strong>Microphone (🎤)</strong> or keyboard.</p>
+                      </div>
                     ) : (
                       conversation.map((msg, idx) => (
                         <div key={idx} className={`transcript-bubble ${msg.sender}`}>
+                          <button
+                            type="button"
+                            className="transcript-audio-btn"
+                            onClick={() => handleSpeakText(msg.text, `msg-${idx}`)}
+                            title={speakingTextId === `msg-${idx}` ? "Stop playback" : "Listen to audio"}
+                          >
+                            {speakingTextId === `msg-${idx}` ? "⏹️ Playing..." : "🔊 Play"}
+                          </button>
                           <span className="speaker-name">
                             {msg.sender === 'system' ? 'CRM Note' : msg.sender === 'customer' ? 'Caller' : 'Copilot Insight'}
                           </span>
@@ -2384,16 +2471,46 @@ export default function App() {
                       ))
                     )}
                   </div>
+
                   <div className="speech-input-bar">
                     <input
                       type="text"
                       value={liveStatementInput}
                       onChange={(e) => setLiveStatementInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleAddStatement(liveStatementInput)}
-                      placeholder="Simulate caller speech (e.g., 'I want to change the nominee on my policy')..."
+                      placeholder={isListening && activeMicTarget === 'caller' ? `🎙️ Listening in ${copilotLang}... Speak your statement now!` : "Simulate caller speech (e.g., 'I want to change the nominee on my policy')..."}
                     />
+                    <button
+                      type="button"
+                      className={`mic-btn ${isListening && activeMicTarget === 'caller' ? 'mic-btn-recording' : ''}`}
+                      onClick={handleToggleCallerMic}
+                      title={isListening && activeMicTarget === 'caller' ? "Stop voice listening" : "Click to speak statement"}
+                    >
+                      {isListening && activeMicTarget === 'caller' ? (
+                        <>
+                          <span>🔴 Live Mic</span>
+                          <div className="audio-wave-container">
+                            <span className="audio-wave-bar"></span>
+                            <span className="audio-wave-bar"></span>
+                            <span className="audio-wave-bar"></span>
+                            <span className="audio-wave-bar"></span>
+                          </div>
+                        </>
+                      ) : (
+                        <span>🎤 Speak</span>
+                      )}
+                    </button>
                     <button onClick={() => handleAddStatement(liveStatementInput)}>Simulate Speech</button>
                   </div>
+
+                  {isListening && activeMicTarget === 'caller' && interimTranscript && (
+                    <div className="live-voice-preview">
+                      <span className="live-voice-preview-text">
+                        🎙️ <em>"{interimTranscript}"</em>
+                      </span>
+                      <span style={{ fontSize: '0.75rem', opacity: 0.85 }}>Transcribing live ({copilotLang})...</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2451,7 +2568,30 @@ export default function App() {
                   <div className="copilot-section-card">
                     <div className="copilot-section-header">3. Agent Guidance</div>
                     
-                    <strong>Suggested Agent Response:</strong>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <strong>Suggested Agent Response:</strong>
+                      <button
+                        type="button"
+                        className={`btn-voice-speak ${speakingTextId === 'suggested-resp' ? 'speaking' : ''}`}
+                        onClick={() => handleSpeakText(copilotIntel.suggestedResponse, 'suggested-resp')}
+                        title="Play suggested response with natural voice"
+                      >
+                        {speakingTextId === 'suggested-resp' ? (
+                          <>
+                            <span>⏹️ Stop Voice</span>
+                            <div className="audio-wave-container">
+                              <span className="audio-wave-bar"></span>
+                              <span className="audio-wave-bar"></span>
+                              <span className="audio-wave-bar"></span>
+                              <span className="audio-wave-bar"></span>
+                            </div>
+                          </>
+                        ) : (
+                          <>🔊 Read Aloud</>
+                        )}
+                      </button>
+                    </div>
+
                     <div className="suggested-response-box">
                       "{copilotIntel.suggestedResponse}"
                     </div>
@@ -2526,22 +2666,41 @@ export default function App() {
 
             {/* RAG Knowledge Base Direct Search */}
             <div className="content-card RAG-search-card" style={{ marginTop: '24px' }}>
-              <h3>Policy Handbook Direct Search</h3>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h3>Policy Handbook Direct Search</h3>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Dictate with 🎤 or listen with 🔊
+                </span>
+              </div>
               <div className="chat-log shadow-inner" style={{ maxHeight: '260px', overflowY: 'auto', marginBottom: '18px' }}>
                 {chatHistory.length === 0 ? (
-                  <div className="empty-chat" style={{ height: '70px' }}><p>Type a question below or select a suggested query.</p></div>
+                  <div className="empty-chat" style={{ height: '70px' }}><p>Type or speak a question below, or select a suggested query.</p></div>
                 ) : (
-                  chatHistory.map((item, idx) => (
-                    <div key={idx} className="chat-message-group">
-                      <div className="user-message">
-                        <span className="message-role-badge">Agent Query</span>
-                        <div className="user-message-text">{item.query}</div>
+                  chatHistory.map((item, idx) => {
+                    const cleanAnswer = (item.response || "").split("**Sources:**")[0].trim();
+                    return (
+                      <div key={idx} className="chat-message-group">
+                        <div className="user-message">
+                          <span className="message-role-badge">Agent Query</span>
+                          <div className="user-message-text">{item.query}</div>
+                        </div>
+                        <div className="response-card">
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                            <div className="response-body-text">{cleanAnswer}</div>
+                            <button
+                              type="button"
+                              className={`btn-voice-speak ${speakingTextId === `rag-resp-${idx}` ? 'speaking' : ''}`}
+                              onClick={() => handleSpeakText(cleanAnswer, `rag-resp-${idx}`)}
+                              title={speakingTextId === `rag-resp-${idx}` ? "Stop voice" : "Read answer aloud"}
+                              style={{ flexShrink: 0 }}
+                            >
+                              {speakingTextId === `rag-resp-${idx}` ? "⏹️" : "🔊"}
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      <div className="response-card">
-                        <div className="response-body-text">{(item.response || "").split("**Sources:**")[0].trim()}</div>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
               <div className="suggestions-container">
@@ -2553,7 +2712,24 @@ export default function App() {
                 </div>
               </div>
               <div className="chat-input-bar" style={{ marginTop: '14px' }}>
-                <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendQuery()} placeholder="Ask a policy question..." disabled={chatLoading} />
+                <div className="input-with-mic-wrapper">
+                  <input 
+                    type="text" 
+                    value={chatInput} 
+                    onChange={(e) => setChatInput(e.target.value)} 
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendQuery()} 
+                    placeholder={isListening && activeMicTarget === 'search' ? `🎙️ Listening (${copilotLang})... Dictate your question...` : "Ask a policy question..."} 
+                    disabled={chatLoading} 
+                  />
+                  <button 
+                    type="button" 
+                    className={`mic-search-btn ${isListening && activeMicTarget === 'search' ? 'recording' : ''}`}
+                    onClick={handleToggleSearchMic}
+                    title={isListening && activeMicTarget === 'search' ? "Stop recording" : "Dictate question by voice"}
+                  >
+                    {isListening && activeMicTarget === 'search' ? '🔴' : '🎤'}
+                  </button>
+                </div>
                 <button onClick={handleSendQuery} disabled={chatLoading} className="submit-btn">{chatLoading ? "Searching..." : "Search"}</button>
               </div>
             </div>

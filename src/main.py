@@ -273,3 +273,30 @@ async def insert_mongo_agent_directory_log(log_doc: Dict[str, Any]):
     """
     return mongo_db.insert_one("agent_directory_logs", log_doc)
 
+# ─── VOICE SERVICES ROUTE ───
+
+@app.get("/api/voice/status")
+async def get_voice_services_status():
+    """
+    Returns the operational configuration of browser STT/TTS voice integration.
+    """
+    return {
+        "status": "ready",
+        "stt_engine": "Browser Web Speech API (SpeechRecognition)",
+        "tts_engine": "Browser SpeechSynthesis API",
+        "supported_locales": [
+            {"name": "English", "code": "en-US"},
+            {"name": "Spanish", "code": "es-ES"},
+            {"name": "French", "code": "fr-FR"},
+            {"name": "German", "code": "de-DE"},
+            {"name": "Hindi", "code": "hi-IN"}
+        ],
+        "features": [
+            "Live Caller Speech Dictation with interim preview",
+            "Copilot Suggested Response Read-Aloud with Equalizer Waveform",
+            "Policy Handbook Direct Query Voice Dictation",
+            "RAG Search Answer Synthetic Voice Playback"
+        ]
+    }
+
+
