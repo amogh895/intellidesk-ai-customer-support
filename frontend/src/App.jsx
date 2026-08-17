@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useVoice } from './hooks/useVoice';
 import './App.css';
 
-const BACKEND_URL = "http://127.0.0.1:8001";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8000";
 const ESCALATION_THRESHOLD = 70000; // Claims > ₹70,000 auto-escalate to Level 3
 
 // ─── SINGLE SOURCE OF DATA STORAGE: EMPLOYEE DATABASE ───
