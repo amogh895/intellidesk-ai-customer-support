@@ -12,7 +12,8 @@ const LANGUAGE_CODES = {
 };
 
 /**
- * Custom React hook providing Speech-to-Text (STT) and Text-to-Speech (TTS).
+ * Custom React hook providing Speech-to-Text (STT), Text-to-Speech (TTS),
+ * Channel Switching, and Live Audio Waveform activity data.
  */
 export function useVoice() {
   const [isListening, setIsListening] = useState(false);
@@ -21,9 +22,21 @@ export function useVoice() {
   const [speakingTextId, setSpeakingTextId] = useState(null);
   const [voiceError, setVoiceError] = useState(null);
   const [availableVoices, setAvailableVoices] = useState([]);
+  
+  // Audio Channels: 'customer_to_agent' | 'agent_to_copilot' | 'agent_to_customer'
+  const [activeChannel, setActiveChannel] = useState('customer_to_agent');
+
+  // Real-time audio activity state (talking detection)
+  const [isTalking, setIsTalking] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0); // 0.0 to 1.0
 
   const recognitionRef = useRef(null);
   const activeLangRef = useRef('en-US');
+  const talkTimerRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const animFrameRef = useRef(null);
+  const mediaStreamRef = useRef(null);
 
   // Check browser support
   const isSTTSupported = typeof window !== 'undefined' && 
@@ -52,13 +65,91 @@ export function useVoice() {
     };
   }, [isTTSSupported]);
 
+  // Audio wave animation when TTS is speaking
+  useEffect(() => {
+    let ttsInterval;
+    if (isSpeaking) {
+      setIsTalking(true);
+      ttsInterval = setInterval(() => {
+        setAudioLevel(0.4 + Math.random() * 0.6);
+      }, 100);
+    } else if (!isListening) {
+      setIsTalking(false);
+      setAudioLevel(0);
+    }
+    return () => {
+      if (ttsInterval) clearInterval(ttsInterval);
+    };
+  }, [isSpeaking, isListening]);
+
+  /**
+   * Start microphone audio analysis via Web Audio API for responsive waveform
+   */
+  const startAudioAnalysis = async () => {
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaStreamRef.current = stream;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+        audioContextRef.current = audioCtx;
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+        analyserRef.current = analyser;
+
+        const source = audioCtx.createMediaStreamSource(stream);
+        source.connect(analyser);
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        const updateWave = () => {
+          if (!analyserRef.current) return;
+          analyserRef.current.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+          }
+          const avg = sum / dataArray.length;
+          const normalized = Math.min(1, avg / 128); // 0 to 1
+
+          if (normalized > 0.08) {
+            setIsTalking(true);
+            setAudioLevel(normalized);
+          } else {
+            setAudioLevel(0);
+            // Delay dropping isTalking to make speech animation natural
+            if (!isSpeaking) {
+              if (talkTimerRef.current) clearTimeout(talkTimerRef.current);
+              talkTimerRef.current = setTimeout(() => setIsTalking(false), 400);
+            }
+          }
+
+          animFrameRef.current = requestAnimationFrame(updateWave);
+        };
+        updateWave();
+      }
+    } catch (e) {
+      console.warn("Microphone stream analysis unavailable:", e);
+      // Fallback: wave based on interim transcript
+    }
+  };
+
+  const stopAudioAnalysis = () => {
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+    setAudioLevel(0);
+    setIsTalking(false);
+  };
+
   /**
    * Start Speech-to-Text listening.
-   * @param {Object} options
-   * @param {string} options.language - Language name (e.g. "English", "Spanish", "French")
-   * @param {Function} options.onFinalResult - Callback with final transcribed string
-   * @param {Function} options.onInterimResult - Callback with interim transcript
-   * @param {boolean} options.continuous - Whether to keep listening or stop after first sentence
    */
   const startListening = useCallback(({
     language = 'English',
@@ -71,13 +162,10 @@ export function useVoice() {
       return;
     }
 
-    // Stop any existing session
     if (recognitionRef.current) {
       try {
         recognitionRef.current.abort();
-      } catch (e) {
-        // ignore abort errors
-      }
+      } catch (e) {}
     }
 
     try {
@@ -95,6 +183,7 @@ export function useVoice() {
         setIsListening(true);
         setVoiceError(null);
         setInterimTranscript('');
+        startAudioAnalysis();
       };
 
       recognition.onresult = (event) => {
@@ -108,6 +197,11 @@ export function useVoice() {
           } else {
             interim += transcriptPiece;
           }
+        }
+
+        if (interim) {
+          setIsTalking(true);
+          setAudioLevel(0.6 + Math.random() * 0.4);
         }
 
         setInterimTranscript(interim);
@@ -127,11 +221,13 @@ export function useVoice() {
           setVoiceError(`Voice recognition error: ${event.error}`);
         }
         setIsListening(false);
+        stopAudioAnalysis();
       };
 
       recognition.onend = () => {
         setIsListening(false);
         setInterimTranscript('');
+        stopAudioAnalysis();
       };
 
       recognitionRef.current = recognition;
@@ -140,6 +236,7 @@ export function useVoice() {
       console.error('Failed to start speech recognition:', err);
       setVoiceError('Could not start microphone recording. ' + err.message);
       setIsListening(false);
+      stopAudioAnalysis();
     }
   }, [isSTTSupported]);
 
@@ -150,22 +247,15 @@ export function useVoice() {
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
       setIsListening(false);
       setInterimTranscript('');
     }
+    stopAudioAnalysis();
   }, []);
 
   /**
    * Text-to-Speech: Read text aloud.
-   * @param {string} text - The text to speak
-   * @param {Object} options
-   * @param {string} options.id - Optional identifier for this utterance (for UI active indicator)
-   * @param {string} options.language - Language name (e.g. "English", "Spanish", "French")
-   * @param {number} options.rate - Speech rate (0.8 - 1.2)
-   * @param {number} options.pitch - Voice pitch (0.8 - 1.2)
    */
   const speak = useCallback((text, {
     id = null,
@@ -175,13 +265,11 @@ export function useVoice() {
   } = {}) => {
     if (!isTTSSupported || !text) return;
 
-    // If currently speaking this exact text, toggle off (stop)
     if (isSpeaking && speakingTextId === id && id !== null) {
       stopSpeaking();
       return;
     }
 
-    // Cancel any existing speech
     window.speechSynthesis.cancel();
 
     const cleanText = text.replace(/[*#_`]/g, '').trim();
@@ -193,7 +281,6 @@ export function useVoice() {
     utterance.rate = rate;
     utterance.pitch = pitch;
 
-    // Pick best matching voice
     const matchingVoice = availableVoices.find(v => v.lang.startsWith(langCode.slice(0, 2))) ||
       availableVoices.find(v => v.lang.includes('en')) ||
       availableVoices[0];
@@ -205,17 +292,22 @@ export function useVoice() {
     utterance.onstart = () => {
       setIsSpeaking(true);
       setSpeakingTextId(id);
+      setIsTalking(true);
     };
 
     utterance.onend = () => {
       setIsSpeaking(false);
       setSpeakingTextId(null);
+      setIsTalking(false);
+      setAudioLevel(0);
     };
 
     utterance.onerror = (e) => {
       console.warn('Speech synthesis error:', e);
       setIsSpeaking(false);
       setSpeakingTextId(null);
+      setIsTalking(false);
+      setAudioLevel(0);
     };
 
     window.speechSynthesis.speak(utterance);
@@ -230,6 +322,8 @@ export function useVoice() {
     }
     setIsSpeaking(false);
     setSpeakingTextId(null);
+    setIsTalking(false);
+    setAudioLevel(0);
   }, [isTTSSupported]);
 
   return {
@@ -245,5 +339,9 @@ export function useVoice() {
     stopSpeaking,
     voiceError,
     setVoiceError,
+    activeChannel,
+    setActiveChannel,
+    isTalking,
+    audioLevel,
   };
 }

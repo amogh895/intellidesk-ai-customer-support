@@ -311,7 +311,7 @@ export default function App() {
   // Language Driver
   const [copilotLang, setCopilotLang] = useState('English');
 
-  // Voice Integration Engine (STT & TTS)
+  // Voice Integration Engine (STT & TTS + 3-Way Switching Studio)
   const {
     isSTTSupported,
     isTTSSupported,
@@ -325,8 +325,12 @@ export default function App() {
     stopSpeaking,
     voiceError,
     setVoiceError,
+    activeChannel,
+    setActiveChannel,
+    isTalking,
+    audioLevel,
   } = useVoice();
-  const [activeMicTarget, setActiveMicTarget] = useState(null); // 'caller' | 'search' | null
+  const [activeMicTarget, setActiveMicTarget] = useState(null); // 'studio' | 'caller' | 'search' | null
 
   // Persistent Session Customer Context
   const [crmInput, setCrmInput] = useState('CRM-103');
@@ -1005,6 +1009,54 @@ export default function App() {
   };
 
   // ─── VOICE INTERACTION HANDLERS ───
+  const handleToggleChannelVoice = () => {
+    if (isListening) {
+      stopListening();
+      setActiveMicTarget(null);
+      return;
+    }
+
+    setActiveMicTarget('studio');
+
+    if (activeChannel === 'customer_to_agent') {
+      // Channel 1: Caller speaking to Agent
+      startListening({
+        language: copilotLang,
+        continuous: false,
+        onInterimResult: (text) => setLiveStatementInput(text),
+        onFinalResult: (text) => {
+          setLiveStatementInput(text);
+          handleAddStatement(text);
+          setActiveMicTarget(null);
+        }
+      });
+    } else if (activeChannel === 'agent_to_copilot') {
+      // Channel 2: Agent consulting Copilot
+      startListening({
+        language: copilotLang,
+        continuous: false,
+        onInterimResult: (text) => setChatInput(text),
+        onFinalResult: (text) => {
+          setChatInput(text);
+          handleSendQuery(text);
+          setActiveMicTarget(null);
+        }
+      });
+    } else if (activeChannel === 'agent_to_customer') {
+      // Channel 3: Agent speaking to Customer
+      startListening({
+        language: copilotLang,
+        continuous: false,
+        onInterimResult: (text) => setLiveStatementInput(text),
+        onFinalResult: (text) => {
+          setConversation(prev => [...prev, { sender: "agent", text: text }]);
+          setLiveStatementInput('');
+          setActiveMicTarget(null);
+        }
+      });
+    }
+  };
+
   const handleToggleCallerMic = () => {
     if (isListening && activeMicTarget === 'caller') {
       stopListening();
@@ -1034,6 +1086,7 @@ export default function App() {
         onInterimResult: (text) => setChatInput(text),
         onFinalResult: (text) => {
           setChatInput(text);
+          handleSendQuery(text);
           setActiveMicTarget(null);
         }
       });
@@ -1045,10 +1098,11 @@ export default function App() {
   };
 
   // ─── RAG KNOWLEDGE BASE QUERY ───
-  const handleSendQuery = async () => {
-    if (!chatInput.trim()) return;
+  const handleSendQuery = async (overrideQuery = null) => {
+    const queryToRun = (typeof overrideQuery === 'string' && overrideQuery.trim()) ? overrideQuery.trim() : chatInput.trim();
+    if (!queryToRun) return;
     setChatLoading(true);
-    const userQuery = chatInput;
+    const userQuery = queryToRun;
     setChatInput('');
     try {
       const res = await fetch(`${BACKEND_URL}/api/query`, {
@@ -2373,6 +2427,136 @@ export default function App() {
                 </div>
               </div>
             )}
+
+            {/* ═══════════ 🎙️ DYNAMIC 3-WAY VOICE COMMUNICATION STUDIO ═══════════ */}
+            <div className="voice-studio-container" style={{ marginTop: '24px' }}>
+              <div className="voice-studio-header">
+                <h3>
+                  <span>🎙️ Voice Communication Studio</span>
+                  <span className={`badge-live ${isTalking ? '' : 'inactive'}`} style={{ fontSize: '0.75rem', padding: '3px 10px', backgroundColor: isTalking ? '#22c55e' : '#64748b' }}>
+                    {isTalking ? "● Live Speech Active" : "○ Channel Standby"}
+                  </span>
+                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    Active Language: <strong>{copilotLang}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* 3-Way Audio Channel Switcher */}
+              <div className="voice-channel-selector">
+                <button
+                  type="button"
+                  className={`voice-channel-btn channel-customer ${activeChannel === 'customer_to_agent' ? 'active' : ''}`}
+                  onClick={() => {
+                    setActiveChannel('customer_to_agent');
+                    if (isListening) stopListening();
+                  }}
+                >
+                  <span className="channel-tag">
+                    <span>📞 Mode 1</span>
+                    {activeChannel === 'customer_to_agent' && <span>• Selected</span>}
+                  </span>
+                  <span className="channel-name">Customer ➔ Agent</span>
+                  <span className="channel-desc">Live caller speech intake, real-time sentiment & intent classification</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`voice-channel-btn channel-copilot ${activeChannel === 'agent_to_copilot' ? 'active' : ''}`}
+                  onClick={() => {
+                    setActiveChannel('agent_to_copilot');
+                    if (isListening) stopListening();
+                  }}
+                >
+                  <span className="channel-tag">
+                    <span>🤖 Mode 2</span>
+                    {activeChannel === 'agent_to_copilot' && <span>• Selected</span>}
+                  </span>
+                  <span className="channel-name">Agent ➔ Copilot</span>
+                  <span className="channel-desc">Consult AI Copilot hands-free & query policy handbook by voice</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`voice-channel-btn channel-agent ${activeChannel === 'agent_to_customer' ? 'active' : ''}`}
+                  onClick={() => {
+                    setActiveChannel('agent_to_customer');
+                    if (isListening) stopListening();
+                  }}
+                >
+                  <span className="channel-tag">
+                    <span>🗣️ Mode 3</span>
+                    {activeChannel === 'agent_to_customer' && <span>• Selected</span>}
+                  </span>
+                  <span className="channel-name">Agent ➔ Customer</span>
+                  <span className="channel-desc">Agent resolution voice channel & synthetic voice script playback</span>
+                </button>
+              </div>
+
+              {/* Big Focused Sound Wave Visualizer Box */}
+              <div className="big-soundwave-card">
+                <div className="big-soundwave-top">
+                  <div className="soundwave-channel-badge">
+                    <span className={`soundwave-status-indicator ${isTalking ? 'talking' : ''}`}></span>
+                    <span>
+                      {activeChannel === 'customer_to_agent' && "Active Channel: 📞 Caller Inbound Voice Stream"}
+                      {activeChannel === 'agent_to_copilot' && "Active Channel: 🤖 Agent to AI Copilot Consultation"}
+                      {activeChannel === 'agent_to_customer' && "Active Channel: 🗣️ Agent to Customer Outbound Audio"}
+                    </span>
+                  </div>
+
+                  <div className="soundwave-action-controls">
+                    <button
+                      type="button"
+                      className={`mic-btn ${isListening && activeMicTarget === 'studio' ? 'mic-btn-recording' : ''}`}
+                      onClick={handleToggleChannelVoice}
+                      style={{ padding: '7px 16px', fontSize: '0.88rem' }}
+                    >
+                      {isListening && activeMicTarget === 'studio' ? (
+                        <>🔴 Stop Mic</>
+                      ) : (
+                        <>🎤 Talk on This Channel</>
+                      )}
+                    </button>
+
+                    {activeChannel === 'agent_to_customer' && copilotIntel.suggestedResponse && (
+                      <button
+                        type="button"
+                        className={`btn-voice-speak ${speakingTextId === 'studio-resp' ? 'speaking' : ''}`}
+                        onClick={() => handleSpeakText(copilotIntel.suggestedResponse, 'studio-resp')}
+                        style={{ padding: '7px 14px', fontSize: '0.85rem', color: '#ffffff', background: 'rgba(255,255,255,0.15)', borderColor: 'rgba(255,255,255,0.3)' }}
+                      >
+                        {speakingTextId === 'studio-resp' ? '⏹️ Stop Playback' : '🔊 Play Copilot Script'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 36-Bar Symmetrical Wave Visualizer - Moving Dynamically While Talking ONLY */}
+                <div className={`big-soundwave-visualizer ${isTalking ? `talking ${activeChannel === 'customer_to_agent' ? 'theme-customer' : activeChannel === 'agent_to_copilot' ? 'theme-copilot' : 'theme-agent'}` : 'idle'}`}>
+                  {Array.from({ length: 36 }).map((_, i) => (
+                    <div key={i} className="big-wave-bar"></div>
+                  ))}
+                </div>
+
+                <div className="big-soundwave-footer">
+                  <div>
+                    {isTalking ? (
+                      <span>
+                        ⚡ <em>Speaking actively...</em> {interimTranscript ? `"${interimTranscript}"` : isSpeaking ? "Voice synthesizer reading aloud..." : "Voice stream active"}
+                      </span>
+                    ) : (
+                      <span>
+                        💤 <em>Silence / Standby</em> — Sound wave moves dynamically only while talking. Click <strong>🎤 Talk on This Channel</strong> to speak.
+                      </span>
+                    )}
+                  </div>
+                  <span style={{ opacity: 0.75 }}>{isTalking ? "48kHz Live Dynamics" : "Acoustic Baseline Calibrated"}</span>
+                </div>
+              </div>
+            </div>
 
             <div className="grid-2 gap-30" style={{ marginTop: '24px' }}>
               {/* ─── LEFT COLUMN: CUSTOMER 360 PROFILE & CALL TRANSCRIPT ─── */}

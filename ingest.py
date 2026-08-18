@@ -5,7 +5,7 @@ from pathlib import Path
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
+from src.retrieval.embeddings import get_embeddings_model
 from src.config.config import settings
 
 def load_documents(data_dir: Path):
@@ -61,10 +61,8 @@ def ingest_data(chunk_size: int = 500, chunk_overlap: int = 100, persist_dir: st
     chunks = splitter.split_documents(docs)
     print(f"Created {len(chunks)} text chunks.")
 
-    print("Loading HuggingFace Embeddings Model (all-MiniLM-L6-v2)...")
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2"
-    )
+    print("Initializing embeddings engine...")
+    embeddings = get_embeddings_model()
 
     print("Building and persisting Chroma DB...")
     db = Chroma.from_documents(

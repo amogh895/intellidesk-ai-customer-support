@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, Any, List, Tuple
 from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
+from src.retrieval.embeddings import get_embeddings_model
 from src.config.config import settings
 
 logger = logging.getLogger(__name__)
@@ -12,9 +12,7 @@ class KnowledgeRetriever:
     """
     def __init__(self, db_path: str = None):
         self.db_path = db_path or settings.CHROMA_DB_PATH
-        self.embeddings = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2"
-        )
+        self.embeddings = get_embeddings_model()
         self.vector_store = Chroma(
             persist_directory=self.db_path,
             embedding_function=self.embeddings
