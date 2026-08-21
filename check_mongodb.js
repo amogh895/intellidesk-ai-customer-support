@@ -6,6 +6,7 @@
  */
 
 const mongoose = require('mongoose');
+try { require('dotenv').config(); } catch (e) {}
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/intellidesk_db';
 
