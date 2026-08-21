@@ -5,8 +5,6 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Force Hugging Face to operate in offline mode now that weights are cached
-os.environ["HF_HUB_OFFLINE"] = "1"
 
 class Settings:
     # Google Gemini Configuration

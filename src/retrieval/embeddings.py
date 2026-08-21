@@ -74,16 +74,11 @@ class GeminiApiEmbeddings(Embeddings):
 
 def get_embeddings_model() -> Embeddings:
     """
-    Returns the most memory-efficient embedding provider available.
-    Prefers Gemini API embeddings (0 MB RAM) to prevent Render/Cloud 512MB OOM errors.
+    Returns the best available embedding provider.
+    Prefers HuggingFace locally (matches the 384-dim ChromaDB index).
+    Falls back to Gemini API embeddings for cloud/memory-constrained environments.
     """
-    if settings.GEMINI_API_KEY:
-        try:
-            return GeminiApiEmbeddings()
-        except Exception as e:
-            logger.warning(f"Failed to load GeminiApiEmbeddings: {e}")
-
-    # Try HuggingFace if available with memory optimization
+    # Try HuggingFace first — matches the 384-dim vectors stored in ChromaDB
     try:
         from langchain_huggingface import HuggingFaceEmbeddings
         return HuggingFaceEmbeddings(
@@ -91,5 +86,15 @@ def get_embeddings_model() -> Embeddings:
             model_kwargs={"device": "cpu"}
         )
     except Exception as e:
-        logger.warning(f"HuggingFace embeddings not available: {e}. Using GeminiApiEmbeddings fallback.")
-        return GeminiApiEmbeddings()
+        logger.warning(f"HuggingFace embeddings not available: {e}. Trying Gemini API.")
+
+    # Fall back to Gemini API embeddings (cloud/memory-constrained environments)
+    if settings.GEMINI_API_KEY:
+        try:
+            return GeminiApiEmbeddings()
+        except Exception as e:
+            logger.warning(f"Failed to load GeminiApiEmbeddings: {e}")
+
+    # Last resort: return GeminiApiEmbeddings with fallback hash-based vectors
+    logger.warning("No embedding provider available. Using GeminiApiEmbeddings with fallback.")
+    return GeminiApiEmbeddings()

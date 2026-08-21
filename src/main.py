@@ -198,12 +198,47 @@ async def approve_agent_action(req: ActionApprovalRequest):
 
 from src.database import sql_db, mongo_db
 
+# ─── ENTERPRISE CRM SERVICE ENDPOINTS ───
+
+@app.get("/api/crm")
+async def get_all_crm_records(q: Optional[str] = None):
+    """
+    Fetch all customer records or perform search query by q parameter.
+    """
+    if q:
+        record = crm_service.lookup_customer(q)
+        if record:
+            return [record]
+        return []
+    return crm_service.get_all_customers()
+
 @app.get("/api/crm/{customer_id}")
 async def get_crm_record(customer_id: str):
+    """
+    Lookup a customer by ID, Name, Phone, Email, or Policy Number.
+    """
     record = crm_service.lookup_customer(customer_id)
     if not record:
-        raise HTTPException(status_code=404, detail="Customer not found.")
+        raise HTTPException(status_code=404, detail="Customer not found in CRM database.")
     return record
+
+@app.post("/api/crm/lookup")
+async def lookup_crm_post(payload: Dict[str, Any]):
+    """
+    Lookup customer via POST body: {"identifier": "..."} or {"query": "..."}
+    """
+    query = payload.get("identifier") or payload.get("query") or payload.get("id") or ""
+    record = crm_service.lookup_customer(query)
+    if not record:
+        raise HTTPException(status_code=404, detail="Customer not found in CRM database.")
+    return record
+
+@app.post("/api/crm")
+async def create_or_update_crm_record(payload: Dict[str, Any]):
+    """
+    Create or update a customer profile in CRM store.
+    """
+    return crm_service.upsert_customer(payload)
 
 @app.get("/api/audit-logs")
 async def get_audit_logs():

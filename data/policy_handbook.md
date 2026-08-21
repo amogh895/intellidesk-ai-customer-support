@@ -49,6 +49,34 @@ Clause 22 — Anti-Theft and Safety Discounts Premium reductions apply for appro
 
 Clause 23 — Two or More Autos / Other Insurance If the policy covers two or more autos, the limits apply separately to each. When other collectible insurance applies to a loss, this policy pays only its share. For non-owned autos, this policy is excess over any other applicable coverage.
 
+Clause 24- Rental Car Reimbursement 
+Eligibility: Rental car reimbursement is available only when an eligible collision or comprehensive claim is active.
+Daily Limit: The policy reimburses rental vehicle expenses up to $40 per day.
+Maximum Duration: Rental reimbursement is available for a maximum of 30 days per covered incident.
+Maximum Reimbursement: Based on the stated limits, the maximum reimbursement is $1,200 per incident ($40 × 30 days).
+Claim Requirement: The rental reimbursement benefit must be associated with an active qualifying collision or comprehensive claim.
+Coverage Limitation: Rental expenses exceeding the $40 daily limit are the customer's responsibility unless another applicable policy provision or endorsement provides additional coverage.
+Duration Limitation: Once the 30-day maximum is reached, additional rental expenses are not covered under this reimbursement provision.
+Incident-Based Coverage: The 30-day limit applies per covered incident, rather than as a general annual rental allowance.
+Policy Verification: Before confirming reimbursement to a customer, the support agent should verify that the related collision or comprehensive claim is active and that the requested rental period falls within the applicable limits.
+Example
+
+If a customer has an active collision claim and rents a vehicle for 10 days at $35/day:
+
+10 × $35 = $350
+
+The full $350 falls within the $40/day limit.
+
+If the rental costs $55/day for 10 days:
+
+10 × $55 = $550
+
+The policy limit is:
+
+10 × $40 = $400
+
+Therefore, $400 would fall within the stated reimbursement limit, while the remaining $150 would not be covered under this provision.
+
 ## Home Insurance Policies
 - **Core Coverage**: Standard home policies cover dwelling, personal property, and general liability.
 - **Dwelling Limit**: Default dwelling coverage is set at 100% of the home's estimated replacement cost.

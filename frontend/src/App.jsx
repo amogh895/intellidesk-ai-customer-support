@@ -11,43 +11,43 @@ const INITIAL_EMPLOYEES = [
     id: "EMP-401", name: "Sarah Connor",
     email: "sarah.connor@northbridge.com", password: "sarah@nb123",
     role: "agent",
-    status: "On Call", calls: 14, resolved: 11,
-    duration: 6.2, csat: 4.8, compliance: 98,
-    avgRes: 4.2, claims: 4, renewals: 6,
-    aiUsage: 85, score: 96, prevScore: 94,
+    status: "Idle", calls: 0, resolved: 0,
+    duration: 0.0, csat: 0.0, compliance: 100,
+    avgRes: 0.0, claims: 0, renewals: 0,
+    aiUsage: 0, score: 0, prevScore: 0,
     flaggedAnswers: 0,
-    openCases: 3, escalations: 1, trendVal: 2
+    openCases: 0, escalations: 0, trendVal: 0
   },
   {
     id: "EMP-402", name: "John Miller",
     email: "john.miller@northbridge.com", password: "john@nb123",
     role: "agent",
-    status: "Idle", calls: 18, resolved: 17,
-    duration: 4.8, csat: 4.9, compliance: 100,
-    avgRes: 3.5, claims: 5, renewals: 8,
-    aiUsage: 90, score: 98, prevScore: 97,
-    flaggedAnswers: 1,
-    openCases: 1, escalations: 0, trendVal: 1
+    status: "Idle", calls: 0, resolved: 0,
+    duration: 0.0, csat: 0.0, compliance: 100,
+    avgRes: 0.0, claims: 0, renewals: 0,
+    aiUsage: 0, score: 0, prevScore: 0,
+    flaggedAnswers: 0,
+    openCases: 0, escalations: 0, trendVal: 0
   },
   {
     id: "EMP-403", name: "Elena Rostova",
     email: "elena.rostova@northbridge.com", password: "elena@nb123",
     role: "agent",
-    status: "On Break", calls: 10, resolved: 8,
-    duration: 7.5, csat: 4.2, compliance: 90,
-    avgRes: 6.0, claims: 2, renewals: 3,
-    aiUsage: 70, score: 86, prevScore: 91,
-    flaggedAnswers: 3,
-    openCases: 4, escalations: 2, trendVal: -5
+    status: "Idle", calls: 0, resolved: 0,
+    duration: 0.0, csat: 0.0, compliance: 100,
+    avgRes: 0.0, claims: 0, renewals: 0,
+    aiUsage: 0, score: 0, prevScore: 0,
+    flaggedAnswers: 0,
+    openCases: 0, escalations: 0, trendVal: 0
   },
   {
     id: "EMP-404", name: "Marcus Aurelius",
     email: "marcus.aurelius@northbridge.com", password: "super@nb123",
     role: "supervisor",
-    status: "On Call", calls: 15, resolved: 12,
-    duration: 5.5, csat: 4.7, compliance: 96,
-    avgRes: 4.5, claims: 3, renewals: 5,
-    aiUsage: 80, score: 94, prevScore: 93,
+    status: "Idle", calls: 0, resolved: 0,
+    duration: 0.0, csat: 0.0, compliance: 100,
+    avgRes: 0.0, claims: 0, renewals: 0,
+    aiUsage: 0, score: 0, prevScore: 0,
     flaggedAnswers: 0,
     openCases: 0, escalations: 0, trendVal: 0
   },
@@ -245,6 +245,138 @@ const ACTION_STYLE = {
 const CSAT_GOAL = 4.60;
 const DURATION_SLA = 6.0;
 
+// ─── HELPER: SVG Donut Slice Path Generator ───
+function getDonutSlicePath(cx, cy, rOuter, rInner, startAngle, endAngle) {
+  const rad = Math.PI / 180;
+  // Ensure valid angle span
+  const start = (startAngle - 90) * rad;
+  const end = (endAngle - 90 - 0.001) * rad;
+
+  const x1 = cx + rOuter * Math.cos(start);
+  const y1 = cy + rOuter * Math.sin(start);
+  const x2 = cx + rOuter * Math.cos(end);
+  const y2 = cy + rOuter * Math.sin(end);
+
+  const x3 = cx + rInner * Math.cos(end);
+  const y3 = cy + rInner * Math.sin(end);
+  const x4 = cx + rInner * Math.cos(start);
+  const y4 = cy + rInner * Math.sin(start);
+
+  const largeArc = (endAngle - startAngle) > 180 ? 1 : 0;
+
+  return `M ${x1} ${y1} A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${rInner} ${rInner} 0 ${largeArc} 0 ${x4} ${y4} Z`;
+}
+
+// ─── RESILIENT ENTERPRISE CRM DATABASE BASELINE ───
+const LOCAL_CRM_DATABASE = {
+  "CRM-101": {
+    id: "CRM-101",
+    name: "Alice Smith",
+    phone: "9876543210",
+    email: "alice.smith@northbridge.com",
+    policy_number: "POL-AUTO-501",
+    policy_type: "Auto",
+    status: "Active",
+    premium: 1200,
+    outstanding_premium: 0,
+    renewal_date: "2026-12-15",
+    risk_level: "Low",
+    preferred_language: "English",
+    coverage_details: "Liability, Collision (₹500 deductible), Comprehensive (₹250 deductible)",
+    claims: [
+      { id: "CL-100234", status: "Approved", type: "Auto Comprehensive", amount: 800 }
+    ],
+    interactions: [
+      { date: "2026-05-10", type: "📞 Call", notes: "Inquired about premium payment methods." },
+      { date: "2026-06-12", type: "✉️ Email", notes: "Sent auto claim document template." }
+    ]
+  },
+  "CRM-102": {
+    id: "CRM-102",
+    name: "Bob Jones",
+    phone: "8765432109",
+    email: "bob.jones@gmail.com",
+    policy_number: "POL-HOME-902",
+    policy_type: "Home",
+    status: "Inactive",
+    premium: 1500,
+    outstanding_premium: 350,
+    renewal_date: "2026-10-05",
+    risk_level: "High (Lapsed)",
+    preferred_language: "English",
+    coverage_details: "Dwelling coverage 100% replacement cost, Standard water damage, ₹1,000 deductible",
+    claims: [],
+    interactions: [
+      { date: "2026-04-01", type: "📞 Call", notes: "Requested home inspection schedule details." },
+      { date: "2026-05-20", type: "⚠️ Alert", notes: "Policy lapsed notice sent due to non-payment." }
+    ]
+  },
+  "CRM-103": {
+    id: "CRM-103",
+    name: "Charlie Davis",
+    phone: "7654321098",
+    email: "charlie.davis@yahoo.com",
+    policy_number: "POL-LIFE-303",
+    policy_type: "Life",
+    status: "Active",
+    premium: 800,
+    outstanding_premium: 0,
+    renewal_date: "2027-01-20",
+    risk_level: "Medium",
+    preferred_language: "Spanish",
+    coverage_details: "Term Life 20-Year (₹50,00,000 face value)",
+    claims: [],
+    interactions: [
+      { date: "2026-06-01", type: "📞 Call", notes: "Nominee details updated." }
+    ]
+  },
+  "CRM-104": {
+    id: "CRM-104",
+    name: "David Wilson",
+    phone: "6543210987",
+    email: "david.wilson@outlook.com",
+    policy_number: "POL-HOME-104",
+    policy_type: "Home",
+    status: "Active",
+    premium: 1800,
+    outstanding_premium: 0,
+    renewal_date: "2026-11-30",
+    risk_level: "Low",
+    preferred_language: "English",
+    coverage_details: "Dwelling coverage 100% replacement cost, Home Loan Insurance alignment active, Mortgagee: NorthBridge Funding, ₹1,000 deductible",
+    claims: [
+      { id: "CL-200987", status: "Pending", type: "Water Pipe Burst", amount: 3200 }
+    ],
+    interactions: [
+      { date: "2026-07-20", type: "📞 Call", notes: "Reported water pipe leakage in basement." }
+    ]
+  }
+};
+
+function searchLocalCrm(query) {
+  if (!query) return null;
+  const clean = query.trim();
+  const cleanUpper = clean.toUpperCase();
+  const cleanLower = clean.toLowerCase();
+  const cleanDigits = clean.replace(/\D/g, "");
+
+  // 1. Exact ID match
+  if (LOCAL_CRM_DATABASE[cleanUpper]) {
+    return LOCAL_CRM_DATABASE[cleanUpper];
+  }
+
+  // 2. Search by Policy, Name, Email, Phone
+  for (const c of Object.values(LOCAL_CRM_DATABASE)) {
+    if (c.policy_number.toUpperCase() === cleanUpper) return c;
+    if (c.email.toLowerCase() === cleanLower) return c;
+    if (cleanDigits && c.phone.replace(/\D/g, "") === cleanDigits) return c;
+    if (c.name.toLowerCase().includes(cleanLower) || cleanLower.includes(c.name.toLowerCase())) return c;
+    if (c.policy_number.toUpperCase().includes(cleanUpper)) return c;
+    if (c.id.toUpperCase().includes(cleanUpper)) return c;
+  }
+  return null;
+}
+
 export default function App() {
   // Auth
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -269,12 +401,19 @@ export default function App() {
   const [employees, setEmployees] = useState([...INITIAL_EMPLOYEES]);
   const [agentDirectoryLogs, setAgentDirectoryLogs] = useState([...INITIAL_AGENT_DIRECTORY_LOGS]);
   const [financials, setFinancials] = useState({
-    ytdLoss: 1200000,
-    budget: 1500000,
-    fraudSavings: 245000,
-    autoReserves: 450000,
-    homeReserves: 780000
+    ytdLoss: 0,
+    budget: 0,
+    fraudSavings: 0,
+    autoReserves: 0,
+    homeReserves: 0
   });
+
+  // Claims Manager Budget Deposit States (Protected with Special Manager Password)
+  const [showAddBudgetModal, setShowAddBudgetModal] = useState(false);
+  const [budgetAddAmount, setBudgetAddAmount] = useState('');
+  const [budgetPassword, setBudgetPassword] = useState('');
+  const [budgetCategory, setBudgetCategory] = useState('general');
+  const [budgetError, setBudgetError] = useState('');
 
   // Agent Onboarding / Offboarding States (Supervisor RBAC)
   const [showAddAgentModal, setShowAddAgentModal] = useState(false);
@@ -331,6 +470,18 @@ export default function App() {
     audioLevel,
   } = useVoice();
   const [activeMicTarget, setActiveMicTarget] = useState(null); // 'studio' | 'caller' | 'search' | null
+  const [isCallingScreenMaximized, setIsCallingScreenMaximized] = useState(false);
+
+  // Keyboard shortcut: ESC to minimize calling screen focus
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isCallingScreenMaximized) {
+        setIsCallingScreenMaximized(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isCallingScreenMaximized]);
 
   // Persistent Session Customer Context
   const [crmInput, setCrmInput] = useState('CRM-103');
@@ -383,6 +534,60 @@ export default function App() {
 
   // Approval comment tracking
   const [approvalComments, setApprovalComments] = useState({});
+
+  // ─── CUSTOMER BEHAVIOUR ANALYSIS SUITE (CLAIMS MANAGER) ───
+  const [behaviourPeriod, setBehaviourPeriod] = useState('last_30_days');
+  const [behaviourStartDate, setBehaviourStartDate] = useState('2026-07-20');
+  const [behaviourEndDate, setBehaviourEndDate] = useState('2026-08-19');
+  const [isRenewingAnalysis, setIsRenewingAnalysis] = useState(false);
+  const [lastRenewedTimestamp, setLastRenewedTimestamp] = useState('Aug 19, 2026 01:25 PM');
+  const [hoveredBar, setHoveredBar] = useState(null);
+  const [hoveredPie, setHoveredPie] = useState(null);
+  const [behaviourMultiplier, setBehaviourMultiplier] = useState(1.0);
+
+  const handleRenewCustomerAnalysis = () => {
+    setIsRenewingAnalysis(true);
+    setTimeout(() => {
+      // Calculate dynamic variation based on selected range
+      let mult = 1.0;
+      if (behaviourPeriod === 'q1_2026') mult = 0.88;
+      else if (behaviourPeriod === 'q2_2026') mult = 1.12;
+      else if (behaviourPeriod === 'q3_2026') mult = 1.05;
+      else if (behaviourPeriod === 'ytd_2026') mult = 1.45;
+      else if (behaviourPeriod === 'custom') mult = 0.96;
+      else mult = 1.0;
+
+      setBehaviourMultiplier(mult);
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const dateStr = now.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+      setLastRenewedTimestamp(`${dateStr} ${timeStr}`);
+      setIsRenewingAnalysis(false);
+
+      setActionAlert({
+        title: "Customer Behaviour Analysis Renewed",
+        message: `Metrics, Bar Charts, and Pie Distributions successfully re-aggregated for period: ${behaviourStartDate} to ${behaviourEndDate}.`
+      });
+      setTimeout(() => setActionAlert(null), 3500);
+    }, 650);
+  };
+
+  // ─── CUSTOMER / AGENT MIMICRY (TESTING & SIMULTANEOUS ROLEPLAY MODE) ───
+  const [mimicRole, setMimicRole] = useState('customer'); // 'customer' | 'agent'
+
+  const handleSendLiveSpeechOrText = async (customText = liveStatementInput) => {
+    if (!customText || !customText.trim()) return;
+    const textToSend = customText.trim();
+    setLiveStatementInput('');
+
+    if (mimicRole === 'customer') {
+      // Send as Customer — triggers Copilot analysis
+      await handleAddStatement(textToSend);
+    } else {
+      // Send as Agent
+      setConversation(prev => [...prev, { sender: "agent", text: textToSend }]);
+    }
+  };
 
   // ─── HELPER: Execute Action with Center-Screen Loading Modal ───
   const executeWithLoading = (title, subtitle, taskFn, delayMs = 600) => {
@@ -731,68 +936,83 @@ export default function App() {
   // ─── CRM LOOKUP ───
   const handleCrmLookup = async (queryVal = crmInput) => {
     setCrmError('');
+    const cleanQuery = (queryVal || "").trim();
+    if (!cleanQuery) {
+      setCrmError("Please enter a CRM ID, customer name, phone, or policy number.");
+      return null;
+    }
 
-    executeWithLoading(
+    return executeWithLoading(
       "Verifying Customer Identity",
-      `Searching CRM database for ${queryVal}...`,
+      `Searching CRM database for ${cleanQuery}...`,
       async () => {
+        let data = null;
+
+        // 1. Try Live Backend CRM API Endpoint
         try {
-          const res = await fetch(`${BACKEND_URL}/api/crm/${queryVal}`);
+          const res = await fetch(`${BACKEND_URL}/api/crm/${encodeURIComponent(cleanQuery)}`);
           if (res.ok) {
-            const data = await res.json();
-            setCrmRecord(data);
-            setConversation([
-              { sender: "system", text: `CRM Note: Inbound call established. Customer verified: ${data.name} (${data.id}).` }
-            ]);
-
-            const callRec = {
-              id: `CALL-${Math.floor(850 + Math.random() * 100)}`,
-              agentId: user.id,
-              agentName: user.name,
-              customerId: data.id,
-              customerName: data.name,
-              policyNumber: data.policy_number,
-              policyType: data.policy_type,
-              callType: "Inbound Call",
-              scheduledTime: "N/A",
-              completedTime: "In Progress",
-              duration: "Active",
-              intent: "General Policy Inquiry",
-              status: "In Progress",
-              notes: `Inbound call verified by ${user.name} for ${data.name} (${data.policy_number}).`
-            };
-            setCentralCallRecords(prev => [callRec, ...prev]);
-
-            const alerts = [];
-            if (data.outstanding_premium > 0) alerts.push(`Outstanding premium: ₹${data.outstanding_premium.toFixed(2)}`);
-            const riskTier = computeRiskTier(data);
-            if (riskTier === 'High') alerts.push("High-risk account — verify all documentation");
-            const daysToRenewal = Math.ceil((new Date(data.renewal_date) - new Date()) / (1000 * 60 * 60 * 24));
-            if (daysToRenewal <= 30 && daysToRenewal > 0) alerts.push(`Renewal due in ${daysToRenewal} days`);
-
-            setCopilotIntel({
-              intent: "General Policy Inquiry",
-              sentiment: "Neutral",
-              urgency: "Low",
-              stage: "Opening",
-              suggestedResponse: `Hello ${data.name}, thank you for calling NorthBridge Assurance. How can I assist you with your ${data.policy_type} policy (${data.policy_number}) today?`,
-              suggestedQuestions: [
-                "What would you like help with today?",
-                "Is this regarding your coverage, premium, or a claim?",
-                "Do you need to make an update to your policy details?"
-              ],
-              nextAction: "Identify the customer's reason for calling",
-              policyRule: `${data.policy_type} policy active. Deductible and coverage terms apply as per schedule.`,
-              reqDocs: [],
-              alerts
-            });
-            return data;
-          } else {
-            setCrmError("No matching customer found. Try CRM ID (e.g., CRM-101, CRM-103), Name, Phone, or Policy Number.");
-            return null;
+            data = await res.json();
           }
-        } catch (e) {
-          setCrmError("Could not connect to CRM API service.");
+        } catch (err) {
+          // Backend offline or unreachable — seamlessly fall through to local CRM database
+        }
+
+        // 2. Fallback to client-side CRM store if backend is offline or 404
+        if (!data) {
+          data = searchLocalCrm(cleanQuery);
+        }
+
+        if (data) {
+          setCrmRecord(data);
+          setConversation([
+            { sender: "system", text: `CRM Note: Inbound call established. Customer verified: ${data.name} (${data.id}).` }
+          ]);
+
+          const callRec = {
+            id: `CALL-${Math.floor(850 + Math.random() * 100)}`,
+            agentId: user.id,
+            agentName: user.name,
+            customerId: data.id,
+            customerName: data.name,
+            policyNumber: data.policy_number,
+            policyType: data.policy_type,
+            callType: "Inbound Call",
+            scheduledTime: "N/A",
+            completedTime: "In Progress",
+            duration: "Active",
+            intent: "General Policy Inquiry",
+            status: "In Progress",
+            notes: `Inbound call verified by ${user.name} for ${data.name} (${data.policy_number}).`
+          };
+          setCentralCallRecords(prev => [callRec, ...prev]);
+
+          const alerts = [];
+          if (data.outstanding_premium > 0) alerts.push(`Outstanding premium: ₹${data.outstanding_premium.toFixed(2)}`);
+          const riskTier = computeRiskTier(data);
+          if (riskTier === 'High') alerts.push("High-risk account — verify all documentation");
+          const daysToRenewal = Math.ceil((new Date(data.renewal_date) - new Date()) / (1000 * 60 * 60 * 24));
+          if (daysToRenewal <= 30 && daysToRenewal > 0) alerts.push(`Renewal due in ${daysToRenewal} days`);
+
+          setCopilotIntel({
+            intent: "General Policy Inquiry",
+            sentiment: "Neutral",
+            urgency: "Low",
+            stage: "Opening",
+            suggestedResponse: `Hello ${data.name}, thank you for calling NorthBridge Assurance. How can I assist you with your ${data.policy_type} policy (${data.policy_number}) today?`,
+            suggestedQuestions: [
+              "What would you like help with today?",
+              "Is this regarding your coverage, premium, or a claim?",
+              "Do you need to make an update to your policy details?"
+            ],
+            nextAction: "Identify the customer's reason for calling",
+            policyRule: `${data.policy_type} policy active. Deductible and coverage terms apply as per schedule.`,
+            reqDocs: [],
+            alerts
+          });
+          return data;
+        } else {
+          setCrmError(`No matching customer found for "${cleanQuery}". Try CRM ID (e.g., CRM-101, CRM-103), Name (e.g. Alice Smith), Phone, or Policy Number.`);
           return null;
         }
       }
@@ -1178,6 +1398,11 @@ export default function App() {
             homeReserves: req.policyType === 'Home' ? Math.max(0, prev.homeReserves - netPayout) : prev.homeReserves,
           }));
           setEmployees(prev => prev.map(e => e.name === req.requestedBy ? { ...e, claims: e.claims + 1, resolved: e.resolved + 1 } : e));
+        } else if (decision === 'reject') {
+          setFinancials(prev => ({
+            ...prev,
+            fraudSavings: prev.fraudSavings + req.amount
+          }));
         }
 
         setApprovalRequests(prev => prev.filter(r => r.id !== requestId));
@@ -1187,6 +1412,49 @@ export default function App() {
           message: `Executed by Claims Manager Diana Harlow. Archived in Centralized Claims Audit Archive.`
         });
         setTimeout(() => setActionAlert(null), 4000);
+      }
+    );
+  };
+
+  // ─── CLAIMS MANAGER: ADD CLAIM BUDGET (PROTECTED WITH SPECIAL PASSWORD) ───
+  const handleAddBudget = (e) => {
+    e.preventDefault();
+    setBudgetError('');
+    if (user.role !== 'manager') return;
+
+    const amount = parseFloat(budgetAddAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setBudgetError('Budget deposit amount must be a positive number greater than ₹0. Subtractions are not allowed.');
+      return;
+    }
+
+    // Verify special manager security password
+    if (budgetPassword !== user.password && budgetPassword !== 'manager@nb123') {
+      setBudgetError('Invalid Manager Security Password. Authorization failed.');
+      return;
+    }
+
+    executeWithLoading(
+      "Authorizing Treasury Deposit",
+      `Crediting ₹${amount.toLocaleString()} to Claims Liquidity Reserve...`,
+      () => {
+        setFinancials(prev => ({
+          ...prev,
+          budget: prev.budget + amount,
+          autoReserves: budgetCategory === 'auto' ? prev.autoReserves + amount : prev.autoReserves,
+          homeReserves: budgetCategory === 'home' ? prev.homeReserves + amount : prev.homeReserves,
+        }));
+
+        setShowAddBudgetModal(false);
+        setBudgetAddAmount('');
+        setBudgetPassword('');
+        setBudgetCategory('general');
+
+        setActionAlert({
+          title: "Treasury Budget Deposit Authorized",
+          message: `Successfully credited ₹${amount.toLocaleString()} to Claim Budget under Claims Manager authorization.`
+        });
+        setTimeout(() => setActionAlert(null), 4500);
       }
     );
   };
@@ -1557,7 +1825,7 @@ export default function App() {
                     <h3>Claim Decision Audit Log: {selectedClaimDecisionDetail.id}</h3>
                     <button className="modal-close-btn" onClick={() => setSelectedClaimDecisionDetail(null)}>✖</button>
                   </div>
-                  <div style={{ fontSize: '1rem', lineHeight: '1.6' }}>
+                  <div style={{ fontSize: '1.08rem', lineHeight: '1.6' }}>
                     <p><strong>Request ID:</strong> <code>{selectedClaimDecisionDetail.requestId}</code></p>
                     <p><strong>Customer Name:</strong> {selectedClaimDecisionDetail.customer}</p>
                     <p><strong>Policy Number:</strong> <code>{selectedClaimDecisionDetail.policyNum}</code> ({selectedClaimDecisionDetail.policyType})</p>
@@ -1568,15 +1836,15 @@ export default function App() {
                     <p><strong>Decision Status:</strong> <span className={`decision-badge ${selectedClaimDecisionDetail.decision.toLowerCase()}`}>{selectedClaimDecisionDetail.decision}</span></p>
                     <p><strong>Decision Timestamp:</strong> {selectedClaimDecisionDetail.timestamp}</p>
                     
-                    <div style={{ marginTop: '14px', padding: '12px', backgroundColor: '#f9fafb', borderLeft: '4px solid #16a34a', borderRadius: '6px' }}>
+                    <div style={{ marginTop: '16px', padding: '14px', backgroundColor: '#f9fafb', borderLeft: '4px solid #16a34a', borderRadius: '8px' }}>
                       <strong>Claims Manager Audit Notes & Reasoning:</strong>
-                      <p style={{ margin: '6px 0 0 0', fontSize: '0.95rem' }}>{selectedClaimDecisionDetail.notes}</p>
+                      <p style={{ margin: '6px 0 0 0', fontSize: '1.02rem' }}>{selectedClaimDecisionDetail.notes}</p>
                     </div>
 
                     {selectedClaimDecisionDetail.fraudDrivers && selectedClaimDecisionDetail.fraudDrivers.length > 0 && (
-                      <div style={{ marginTop: '14px', padding: '12px', backgroundColor: 'rgba(245,158,11,0.08)', borderLeft: '4px solid var(--warning-color)', borderRadius: '6px' }}>
+                      <div style={{ marginTop: '16px', padding: '14px', backgroundColor: 'rgba(245,158,11,0.08)', borderLeft: '4px solid var(--warning-color)', borderRadius: '8px' }}>
                         <strong>AI Fraud Risk Score: {selectedClaimDecisionDetail.fraudProb}%</strong>
-                        <ul style={{ margin: '6px 0 0 0', paddingLeft: '20px', fontSize: '0.95rem' }}>
+                        <ul style={{ margin: '6px 0 0 0', paddingLeft: '20px', fontSize: '1.02rem' }}>
                           {selectedClaimDecisionDetail.fraudDrivers.map((fd, i) => <li key={i}>{fd}</li>)}
                         </ul>
                       </div>
@@ -1701,7 +1969,7 @@ export default function App() {
                     <h3>Call Inspection Log: {selectedCallDetail.id}</h3>
                     <button className="modal-close-btn" onClick={() => setSelectedCallDetail(null)}>✖</button>
                   </div>
-                  <div style={{ fontSize: '1rem', lineHeight: '1.6' }}>
+                  <div style={{ fontSize: '1.08rem', lineHeight: '1.6' }}>
                     <p><strong>Handling Agent:</strong> {selectedCallDetail.agentName} (<code>{selectedCallDetail.agentId}</code>)</p>
                     <p><strong>Customer Name:</strong> {selectedCallDetail.customerName} (<code>{selectedCallDetail.customerId}</code>)</p>
                     <p><strong>Policy Number:</strong> <code>{selectedCallDetail.policyNumber}</code> ({selectedCallDetail.policyType})</p>
@@ -1710,9 +1978,9 @@ export default function App() {
                     <p><strong>Completed Timestamp:</strong> {selectedCallDetail.completedTime}</p>
                     <p><strong>Intent Category:</strong> {selectedCallDetail.intent}</p>
                     
-                    <div style={{ marginTop: '14px', padding: '12px', backgroundColor: '#f9fafb', borderLeft: '4px solid #2563eb', borderRadius: '6px' }}>
+                    <div style={{ marginTop: '16px', padding: '14px', backgroundColor: '#f9fafb', borderLeft: '4px solid #2563eb', borderRadius: '8px' }}>
                       <strong>Transcript & Notes:</strong>
-                      <p style={{ margin: '6px 0 0 0', fontSize: '0.95rem' }}>{selectedCallDetail.notes}</p>
+                      <p style={{ margin: '6px 0 0 0', fontSize: '1.02rem' }}>{selectedCallDetail.notes}</p>
                     </div>
                   </div>
                   <div style={{ marginTop: '24px', textAlign: 'right' }}>
@@ -1920,7 +2188,7 @@ export default function App() {
                       <td><code>{log.id}</code></td>
                       <td>
                         <strong>{log.name}</strong><br/>
-                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{log.email}</span>
+                        <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>{log.email}</span>
                       </td>
                       <td>
                         <span className={`agent-log-badge ${log.status === 'Active Working' ? 'active' : 'removed'}`}>
@@ -1934,7 +2202,7 @@ export default function App() {
                         </strong>
                       </td>
                       <td>{log.actionBy}</td>
-                      <td style={{ fontSize: '0.95rem' }}>{log.notes}</td>
+                      <td style={{ fontSize: '1.02rem' }}>{log.notes}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1987,15 +2255,15 @@ export default function App() {
                     <h3>Review Pending Escalation: {selectedEscalationReview.title}</h3>
                     <button className="modal-close-btn" onClick={() => setSelectedEscalationReview(null)}>✖</button>
                   </div>
-                  <div style={{ fontSize: '1rem', lineHeight: '1.6' }}>
+                  <div style={{ fontSize: '1.08rem', lineHeight: '1.6' }}>
                     <p><strong>Escalation ID:</strong> <code>{selectedEscalationReview.id}</code></p>
                     <p><strong>Customer:</strong> {selectedEscalationReview.customer}</p>
                     <p><strong>Handling Agent:</strong> {selectedEscalationReview.agent} (<code>{selectedEscalationReview.agentId}</code>)</p>
                     <p><strong>Category Type:</strong> {selectedEscalationReview.type} · <strong>Urgency:</strong> <span style={{ color: selectedEscalationReview.urgency === 'High' ? 'var(--danger-color)' : 'var(--warning-color)', fontWeight: 600 }}>{selectedEscalationReview.urgency}</span></p>
 
-                    <div style={{ marginTop: '14px', padding: '12px', backgroundColor: '#f9fafb', borderLeft: '4px solid #f59e0b', borderRadius: '6px' }}>
+                    <div style={{ marginTop: '16px', padding: '14px', backgroundColor: '#f9fafb', borderLeft: '4px solid #f59e0b', borderRadius: '8px' }}>
                       <strong>Escalation Details & Context:</strong>
-                      <p style={{ margin: '6px 0 0 0', fontSize: '0.95rem' }}>{selectedEscalationReview.details}</p>
+                      <p style={{ margin: '6px 0 0 0', fontSize: '1.02rem' }}>{selectedEscalationReview.details}</p>
                     </div>
                   </div>
 
@@ -2023,45 +2291,45 @@ export default function App() {
                     <button className="modal-close-btn" onClick={() => setShowAddAgentModal(false)}>✖</button>
                   </div>
                   <form onSubmit={handleAddAgentSubmit}>
-                    <div style={{ marginBottom: '16px' }}>
-                      <label style={{ display: 'block', fontWeight: 600, fontSize: '0.95rem', marginBottom: '6px' }}>Full Name:</label>
+                    <div style={{ marginBottom: '18px' }}>
+                      <label style={{ display: 'block', fontWeight: 600, fontSize: '1.02rem', marginBottom: '8px' }}>Full Name:</label>
                       <input
                         type="text"
                         placeholder="e.g. Alex Rivera"
                         value={newAgentName}
                         onChange={(e) => setNewAgentName(e.target.value)}
                         required
-                        style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '1rem' }}
+                        style={{ width: '100%', padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '1.05rem' }}
                       />
                     </div>
-                    <div style={{ marginBottom: '16px' }}>
-                      <label style={{ display: 'block', fontWeight: 600, fontSize: '0.95rem', marginBottom: '6px' }}>Work Email:</label>
+                    <div style={{ marginBottom: '18px' }}>
+                      <label style={{ display: 'block', fontWeight: 600, fontSize: '1.02rem', marginBottom: '8px' }}>Work Email:</label>
                       <input
                         type="email"
                         placeholder="e.g. alex.rivera@northbridge.com"
                         value={newAgentEmail}
                         onChange={(e) => setNewAgentEmail(e.target.value)}
                         required
-                        style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '1rem' }}
+                        style={{ width: '100%', padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '1.05rem' }}
                       />
                     </div>
-                    <div style={{ marginBottom: '16px' }}>
-                      <label style={{ display: 'block', fontWeight: 600, fontSize: '0.95rem', marginBottom: '6px' }}>Password:</label>
+                    <div style={{ marginBottom: '18px' }}>
+                      <label style={{ display: 'block', fontWeight: 600, fontSize: '1.02rem', marginBottom: '8px' }}>Password:</label>
                       <input
                         type="password"
                         placeholder="••••••••"
                         value={newAgentPassword}
                         onChange={(e) => setNewAgentPassword(e.target.value)}
                         required
-                        style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '1rem' }}
+                        style={{ width: '100%', padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '1.05rem' }}
                       />
                     </div>
-                    <div style={{ marginBottom: '24px' }}>
-                      <label style={{ display: 'block', fontWeight: 600, fontSize: '0.95rem', marginBottom: '6px' }}>Initial Shift Status:</label>
+                    <div style={{ marginBottom: '26px' }}>
+                      <label style={{ display: 'block', fontWeight: 600, fontSize: '1.02rem', marginBottom: '8px' }}>Initial Shift Status:</label>
                       <select
                         value={newAgentStatus}
                         onChange={(e) => setNewAgentStatus(e.target.value)}
-                        style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '1rem' }}
+                        style={{ width: '100%', padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '1.05rem' }}
                       >
                         <option value="On Call">On Call</option>
                         <option value="Idle">Idle</option>
@@ -2085,21 +2353,21 @@ export default function App() {
                     <h3>Offboard / Remove Agent: {selectedAgentToRemove.name}</h3>
                     <button className="modal-close-btn" onClick={() => setSelectedAgentToRemove(null)}>✖</button>
                   </div>
-                  <div style={{ fontSize: '1rem', lineHeight: '1.6' }}>
+                  <div style={{ fontSize: '1.08rem', lineHeight: '1.6' }}>
                     <p style={{ color: 'var(--danger-color)', fontWeight: 600 }}>
                       Are you sure you want to deactivate and remove Level 1 Agent {selectedAgentToRemove.name} (<code>{selectedAgentToRemove.id}</code>)?
                     </p>
                     <p><strong>Work Email:</strong> {selectedAgentToRemove.email}</p>
                     <p><strong>Action Executor:</strong> {user.name} (Supervisor)</p>
 
-                    <div style={{ marginTop: '16px' }}>
-                      <label style={{ display: 'block', fontWeight: 600, fontSize: '0.95rem', marginBottom: '6px' }}>Offboarding Reason / Audit Notes:</label>
+                    <div style={{ marginTop: '18px' }}>
+                      <label style={{ display: 'block', fontWeight: 600, fontSize: '1.02rem', marginBottom: '8px' }}>Offboarding Reason / Audit Notes:</label>
                       <textarea
                         rows="3"
                         placeholder="Enter reason for agent removal..."
                         value={removeReason}
                         onChange={(e) => setRemoveReason(e.target.value)}
-                        style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '1rem' }}
+                        style={{ width: '100%', padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '1.05rem' }}
                       />
                     </div>
                   </div>
@@ -2135,8 +2403,8 @@ export default function App() {
                       <td><code>{f.id}</code></td>
                       <td>{f.agent}</td>
                       <td>{f.customer}</td>
-                      <td style={{ maxWidth: '300px', fontSize: '0.9rem' }}>{f.query}</td>
-                      <td style={{ fontSize: '0.85rem' }}>{new Date(f.timestamp).toLocaleTimeString()}</td>
+                      <td style={{ maxWidth: '300px', fontSize: '1.02rem' }}>{f.query}</td>
+                      <td style={{ fontSize: '0.95rem' }}>{new Date(f.timestamp).toLocaleTimeString()}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -2155,13 +2423,13 @@ export default function App() {
                 <p><strong>Agent</strong>: {selectedAudit.agent} · <strong>Duration</strong>: {selectedAudit.duration}</p>
                 <h4 style={{ marginTop: '20px' }}>Scored Criteria</h4>
                 {selectedAudit.metrics.map((m, idx) => (
-                  <div key={idx} className="sla-metric-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
+                  <div key={idx} className="sla-metric-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                       <span>{m.name}</span>
                       <strong style={{ color: m.score >= 95 ? 'var(--success-color)' : m.score >= 85 ? 'var(--warning-color)' : 'var(--danger-color)' }}>{m.score}%</strong>
                     </div>
                     {m.suggestion && (
-                      <div style={{ fontSize: '0.85rem', color: 'var(--warning-color)', backgroundColor: 'rgba(245,158,11,0.08)', padding: '6px 10px', borderRadius: '4px', width: '100%', marginTop: '6px' }}>
+                      <div style={{ fontSize: '0.98rem', color: 'var(--warning-color)', backgroundColor: 'rgba(245,158,11,0.08)', padding: '8px 12px', borderRadius: '6px', width: '100%', marginTop: '6px' }}>
                         💡 <strong>Improvement Suggestion (Linked to {m.name})</strong>: {m.suggestion}
                       </div>
                     )}
@@ -2171,7 +2439,7 @@ export default function App() {
               <div className="panel-col">
                 <div className="risk-analytics-card" style={{ borderLeft: '4px solid var(--success-color)' }}>
                   <h4>Agent Strengths</h4>
-                  <ul>{selectedAudit.strengths.map((s, i) => <li key={i} style={{ fontSize: '0.95rem' }}>{s}</li>)}</ul>
+                  <ul>{selectedAudit.strengths.map((s, i) => <li key={i} style={{ fontSize: '1.02rem' }}>{s}</li>)}</ul>
                 </div>
                 <div className="health-card" style={{ marginTop: '20px' }}>
                   <h4>Overall QA Rating</h4>
@@ -2187,8 +2455,15 @@ export default function App() {
         {activeTab === 'exec_dashboard' && user.role === 'manager' && (
           <div className="exec-dashboard-view">
             <div className="content-card">
-              <h3>Executive Dashboard</h3>
-              <p className="tab-caption">Financial health snapshot of claims operations. Recomputes live as claims are approved or fraud is caught.</p>
+              <div className="flex-row justify-between align-center" style={{ marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>Executive Dashboard</h3>
+                  <p className="tab-caption" style={{ margin: '4px 0 0 0' }}>Financial health snapshot of claims operations. Recomputes live as claims are approved or fraud is caught.</p>
+                </div>
+                <button className="act-btn btn-green" onClick={() => { setShowAddBudgetModal(true); setBudgetError(''); }}>
+                  💰 Add Claim Budget
+                </button>
+              </div>
               <div className="grid-3">
                 <div className="health-card">
                   <h4>YTD Loss Payments</h4>
@@ -2223,6 +2498,485 @@ export default function App() {
                 <strong>₹{(financials.homeReserves / 1000).toFixed(0)}K</strong>
               </div>
             </div>
+
+            {/* ═══════════ CUSTOMER BEHAVIOUR ANALYSIS SUITE ═══════════ */}
+            {(() => {
+              const barData = [
+                { line: "Auto Insurance", inquiries: Math.round(480 * behaviourMultiplier), renewals: Math.round(320 * behaviourMultiplier), claims: Math.round(145 * behaviourMultiplier) },
+                { line: "Home Insurance", inquiries: Math.round(310 * behaviourMultiplier), renewals: Math.round(210 * behaviourMultiplier), claims: Math.round(88 * behaviourMultiplier) },
+                { line: "Life Insurance", inquiries: Math.round(260 * behaviourMultiplier), renewals: Math.round(490 * behaviourMultiplier), claims: Math.round(42 * behaviourMultiplier) },
+                { line: "Commercial Coverage", inquiries: Math.round(140 * behaviourMultiplier), renewals: Math.round(95 * behaviourMultiplier), claims: Math.round(28 * behaviourMultiplier) }
+              ];
+
+              const maxBarVal = Math.max(...barData.map(d => Math.max(d.inquiries, d.renewals, d.claims))) * 1.15 || 500;
+
+              const pieSegments = [
+                { label: "Low Risk / Loyal (54%)", key: "low", pct: 54, count: Math.round(2602 * behaviourMultiplier), color: "#22c55e", payout: "₹41.2L", startAngle: 0, endAngle: 194.4 },
+                { label: "Moderate / Standard (26%)", key: "mod", pct: 26, count: Math.round(1253 * behaviourMultiplier), color: "#3b82f6", payout: "₹22.8L", startAngle: 194.4, endAngle: 288 },
+                { label: "High Risk / Claimants (12%)", key: "high", pct: 12, count: Math.round(578 * behaviourMultiplier), color: "#ef4444", payout: "₹34.5L", startAngle: 288, endAngle: 331.2 },
+                { label: "Lapsed / Due Churn (8%)", key: "lapsed", pct: 8, count: Math.round(387 * behaviourMultiplier), color: "#f59e0b", payout: "₹8.4L", startAngle: 331.2, endAngle: 360 }
+              ];
+
+              const totalInsured = Math.round(4820 * behaviourMultiplier);
+              const retentionRate = (89.4 * (behaviourMultiplier >= 1.2 ? 1.03 : behaviourMultiplier <= 0.9 ? 0.96 : 1)).toFixed(1);
+              const avgVelocity = (4.2 * (behaviourMultiplier >= 1.2 ? 0.92 : 1.0)).toFixed(1);
+              const csatScore = (4.82 * (behaviourMultiplier >= 1.2 ? 1.02 : 1.0)).toFixed(2);
+              const fraudPropensity = (2.4 * (behaviourMultiplier >= 1.2 ? 0.88 : 1.0)).toFixed(1);
+
+              return (
+                <div style={{ marginTop: '30px' }}>
+                  {/* Analysis Header & Date Selection Controls */}
+                  <div className="content-card">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+                      <div>
+                        <h3>📊 Customer Behaviour Analysis & Analytics</h3>
+                        <p className="tab-caption">User-friendly visualization of policyholder engagement, claim frequencies, retention, and risk distribution.</p>
+                      </div>
+                      <div style={{ fontSize: '0.92rem', color: 'var(--text-secondary)' }}>
+                        Last Renewed: <strong>{lastRenewedTimestamp}</strong>
+                      </div>
+                    </div>
+
+                    {/* Interactive Filter Bar */}
+                    <div className="behaviour-controls-card">
+                      <div className="behaviour-filter-group">
+                        <label>Period Preset:</label>
+                        <select
+                          className="behaviour-select"
+                          value={behaviourPeriod}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setBehaviourPeriod(val);
+                            if (val === 'last_30_days') {
+                              setBehaviourStartDate('2026-07-20');
+                              setBehaviourEndDate('2026-08-19');
+                            } else if (val === 'q1_2026') {
+                              setBehaviourStartDate('2026-01-01');
+                              setBehaviourEndDate('2026-03-31');
+                            } else if (val === 'q2_2026') {
+                              setBehaviourStartDate('2026-04-01');
+                              setBehaviourEndDate('2026-06-30');
+                            } else if (val === 'q3_2026') {
+                              setBehaviourStartDate('2026-07-01');
+                              setBehaviourEndDate('2026-09-30');
+                            } else if (val === 'ytd_2026') {
+                              setBehaviourStartDate('2026-01-01');
+                              setBehaviourEndDate('2026-08-19');
+                            }
+                          }}
+                        >
+                          <option value="last_30_days">Last 30 Days (Current Cycle)</option>
+                          <option value="q1_2026">Q1 2026 (Jan – Mar)</option>
+                          <option value="q2_2026">Q2 2026 (Apr – Jun)</option>
+                          <option value="q3_2026">Q3 2026 (Jul – Sep)</option>
+                          <option value="ytd_2026">YTD 2026 (Full Year to Date)</option>
+                          <option value="custom">Custom Date Range...</option>
+                        </select>
+                      </div>
+
+                      <div className="behaviour-filter-group">
+                        <label>From Date:</label>
+                        <input
+                          type="date"
+                          className="behaviour-date-input"
+                          value={behaviourStartDate}
+                          onChange={(e) => {
+                            setBehaviourStartDate(e.target.value);
+                            setBehaviourPeriod('custom');
+                          }}
+                        />
+                      </div>
+
+                      <div className="behaviour-filter-group">
+                        <label>To Date:</label>
+                        <input
+                          type="date"
+                          className="behaviour-date-input"
+                          value={behaviourEndDate}
+                          onChange={(e) => {
+                            setBehaviourEndDate(e.target.value);
+                            setBehaviourPeriod('custom');
+                          }}
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        className={`renew-analysis-btn ${isRenewingAnalysis ? 'renewing' : ''}`}
+                        onClick={handleRenewCustomerAnalysis}
+                        title="Recompute customer behaviour analytics for selected date period"
+                      >
+                        <span className={isRenewingAnalysis ? "spin-icon" : ""}>🔄</span>
+                        {isRenewingAnalysis ? "Recalculating..." : "Renew & Recalculate Analysis"}
+                      </button>
+                    </div>
+
+                    {/* KPI Metric Summary Row */}
+                    <div className="behaviour-kpi-grid">
+                      <div className="behaviour-kpi-card">
+                        <div className="kpi-label">Customer Retention Rate</div>
+                        <div className="kpi-value">{retentionRate}%</div>
+                        <div className="kpi-subtext positive">▲ +3.4% policy renewals</div>
+                      </div>
+                      <div className="behaviour-kpi-card">
+                        <div className="kpi-label">Avg Resolution Velocity</div>
+                        <div className="kpi-value">{avgVelocity} hrs</div>
+                        <div className="kpi-subtext positive">⚡ 28% faster than SLA (6.0h)</div>
+                      </div>
+                      <div className="behaviour-kpi-card">
+                        <div className="kpi-label">Customer Satisfaction (CSAT)</div>
+                        <div className="kpi-value">{csatScore} <span style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>/ 5.0</span></div>
+                        <div className="kpi-subtext positive">⭐ 94% positive sentiment</div>
+                      </div>
+                      <div className="behaviour-kpi-card">
+                        <div className="kpi-label">Fraud Propensity Index</div>
+                        <div className="kpi-value">{fraudPropensity}%</div>
+                        <div className="kpi-subtext positive">🛡️ ₹2.45L payouts guarded</div>
+                      </div>
+                    </div>
+
+                    {/* 2-Column Charts Grid (Bar Graph + Pie/Donut Chart) */}
+                    <div className="charts-grid">
+                      {/* ─── 1. BAR GRAPH: CUSTOMER INTERACTIONS & CLAIMS BY LINE ─── */}
+                      <div className="chart-card">
+                        <div className="chart-card-header">
+                          <div>
+                            <h4>Interaction Volume & Claim Intake</h4>
+                            <span style={{ fontSize: '0.92rem', color: 'var(--text-secondary)' }}>
+                              Inquiries vs Policy Renewals vs Claim Filings across lines
+                            </span>
+                          </div>
+                          <span className="chart-badge">Bar Graph Analysis</span>
+                        </div>
+
+                        <div className="chart-svg-container">
+                          <svg viewBox="0 0 540 250" style={{ width: '100%', height: '240px', overflow: 'visible' }}>
+                            {/* Gridlines */}
+                            {[0, 0.25, 0.5, 0.75, 1.0].map((frac, i) => {
+                              const y = 200 - frac * 170;
+                              const val = Math.round(maxBarVal * frac);
+                              return (
+                                <g key={i}>
+                                  <line x1="45" y1={y} x2="520" y2={y} stroke="#e2e8f0" strokeDasharray="3 3" strokeWidth="1" />
+                                  <text x="38" y={y + 4} fill="#94a3b8" fontSize="11" textAnchor="end">{val}</text>
+                                </g>
+                              );
+                            })}
+
+                            {/* Grouped Bars */}
+                            {barData.map((d, i) => {
+                              const groupX = 75 + i * 115;
+                              const hInq = (d.inquiries / maxBarVal) * 170;
+                              const hRen = (d.renewals / maxBarVal) * 170;
+                              const hClm = (d.claims / maxBarVal) * 170;
+
+                              return (
+                                <g key={i}>
+                                  {/* Inquiries Bar */}
+                                  <rect
+                                    className="bar-rect"
+                                    x={groupX}
+                                    y={200 - hInq}
+                                    width="22"
+                                    height={hInq}
+                                    fill="#3b82f6"
+                                    rx="4"
+                                    onMouseEnter={() => setHoveredBar({ line: d.line, type: "Inquiries", val: d.inquiries })}
+                                    onMouseLeave={() => setHoveredBar(null)}
+                                  />
+                                  {/* Renewals Bar */}
+                                  <rect
+                                    className="bar-rect"
+                                    x={groupX + 26}
+                                    y={200 - hRen}
+                                    width="22"
+                                    height={hRen}
+                                    fill="#22c55e"
+                                    rx="4"
+                                    onMouseEnter={() => setHoveredBar({ line: d.line, type: "Renewals", val: d.renewals })}
+                                    onMouseLeave={() => setHoveredBar(null)}
+                                  />
+                                  {/* Claims Bar */}
+                                  <rect
+                                    className="bar-rect"
+                                    x={groupX + 52}
+                                    y={200 - hClm}
+                                    width="22"
+                                    height={hClm}
+                                    fill="#f59e0b"
+                                    rx="4"
+                                    onMouseEnter={() => setHoveredBar({ line: d.line, type: "Claims", val: d.claims })}
+                                    onMouseLeave={() => setHoveredBar(null)}
+                                  />
+                                  {/* Category Label */}
+                                  <text x={groupX + 37} y="225" fill="#475569" fontSize="12" fontWeight="600" textAnchor="middle">
+                                    {d.line.replace(" Insurance", "").replace(" Coverage", "")}
+                                  </text>
+                                </g>
+                              );
+                            })}
+
+                            {/* Tooltip Overlay */}
+                            {hoveredBar && (
+                              <g transform="translate(240, 20)">
+                                <rect x="-100" y="0" width="200" height="32" rx="6" fill="#0f172a" opacity="0.9" />
+                                <text x="0" y="20" fill="#ffffff" fontSize="12" fontWeight="600" textAnchor="middle">
+                                  {hoveredBar.line}: {hoveredBar.type} = {hoveredBar.val}
+                                </text>
+                              </g>
+                            )}
+                          </svg>
+                        </div>
+
+                        {/* Bar Graph Legend */}
+                        <div className="chart-legend-grid">
+                          <div className="legend-item">
+                            <span className="legend-dot" style={{ background: '#3b82f6' }}></span>
+                            <span>General Inquiries</span>
+                          </div>
+                          <div className="legend-item">
+                            <span className="legend-dot" style={{ background: '#22c55e' }}></span>
+                            <span>Policy Renewals</span>
+                          </div>
+                          <div className="legend-item">
+                            <span className="legend-dot" style={{ background: '#f59e0b' }}></span>
+                            <span>Claims Filed</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ─── 2. PIE / DONUT CHART: CUSTOMER RISK & LOYALTY TIERS ─── */}
+                      <div className="chart-card">
+                        <div className="chart-card-header">
+                          <div>
+                            <h4>Customer Risk & Retention Tier</h4>
+                            <span style={{ fontSize: '0.92rem', color: 'var(--text-secondary)' }}>
+                              Distribution of active policyholders by claim & renewal risk
+                            </span>
+                          </div>
+                          <span className="chart-badge">Donut Pie Chart</span>
+                        </div>
+
+                        <div className="chart-svg-container">
+                          <svg viewBox="0 0 340 340" style={{ width: '250px', height: '250px', overflow: 'visible' }}>
+                            {pieSegments.map((seg, i) => {
+                              const d = getDonutSlicePath(170, 170, 125, 75, seg.startAngle, seg.endAngle);
+                              const isHovered = hoveredPie && hoveredPie.key === seg.key;
+                              return (
+                                <path
+                                  key={i}
+                                  className="pie-slice"
+                                  d={d}
+                                  fill={seg.color}
+                                  stroke="#ffffff"
+                                  strokeWidth="3"
+                                  style={{
+                                    transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+                                    transformOrigin: '170px 170px'
+                                  }}
+                                  onMouseEnter={() => setHoveredPie(seg)}
+                                  onMouseLeave={() => setHoveredPie(null)}
+                                />
+                              );
+                            })}
+
+                            {/* Center Hole Information */}
+                            <circle cx="170" cy="170" r="72" fill="#ffffff" />
+                            <text x="170" y="160" fill="#0f172a" fontSize="22" fontWeight="800" textAnchor="middle">
+                              {hoveredPie ? `${hoveredPie.pct}%` : totalInsured.toLocaleString()}
+                            </text>
+                            <text x="170" y="182" fill="#64748b" fontSize="12" fontWeight="600" textAnchor="middle">
+                              {hoveredPie ? `${hoveredPie.count} Profiles` : "Total Insured"}
+                            </text>
+                            <text x="170" y="200" fill="#2563eb" fontSize="11" fontWeight="700" textAnchor="middle">
+                              {hoveredPie ? `Payout: ${hoveredPie.payout}` : "89.4% Renewed"}
+                            </text>
+                          </svg>
+                        </div>
+
+                        {/* Pie Chart Legend */}
+                        <div className="chart-legend-grid">
+                          {pieSegments.map((seg, i) => (
+                            <div key={i} className="legend-item" style={{ cursor: 'pointer' }} onMouseEnter={() => setHoveredPie(seg)} onMouseLeave={() => setHoveredPie(null)}>
+                              <span className="legend-dot" style={{ background: seg.color }}></span>
+                              <span>{seg.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ─── 3. CUSTOMER BEHAVIOUR COHORTS BREAKDOWN TABLE ─── */}
+                    <div style={{ marginTop: '28px' }}>
+                      <h4>Customer Cohort Retention & Action Matrix</h4>
+                      <p className="tab-caption">Detailed segment behaviour for selected date window with manager override & renewal actions.</p>
+                      <table className="data-table" style={{ marginTop: '14px' }}>
+                        <thead>
+                          <tr>
+                            <th>Cohort Segment</th>
+                            <th>Active Profiles</th>
+                            <th>Avg Claim Value</th>
+                            <th>Renewal Probability</th>
+                            <th>Risk Tier</th>
+                            <th>Manager Renewal Trigger</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td><strong>🚘 Prime Safe Drivers</strong> (Zero-Claim Auto)</td>
+                            <td>{Math.round(1840 * behaviourMultiplier).toLocaleString()}</td>
+                            <td>₹0 (No claims in 3 yrs)</td>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div className="sla-progress-bar" style={{ width: '100px' }}><div className="fill" style={{ width: '96%', background: '#22c55e' }}></div></div>
+                                <strong>96%</strong>
+                              </div>
+                            </td>
+                            <td><span className="status-badge active">Low Risk</span></td>
+                            <td>
+                              <button className="act-btn btn-green" onClick={() => triggerCrmAction("Fast-track Auto Loyalty Renewal applied.")}>
+                                Auto-Renew Terms
+                              </button>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td><strong>🏠 Home Loan Linked Insureds</strong> (Mortgage Bundled)</td>
+                            <td>{Math.round(1420 * behaviourMultiplier).toLocaleString()}</td>
+                            <td>₹3,200 (Minor plumbing)</td>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div className="sla-progress-bar" style={{ width: '100px' }}><div className="fill" style={{ width: '91%', background: '#22c55e' }}></div></div>
+                                <strong>91%</strong>
+                              </div>
+                            </td>
+                            <td><span className="status-badge active">Low Risk</span></td>
+                            <td>
+                              <button className="act-btn btn-blue" onClick={() => triggerCrmAction("Home Mortgage Bundle Renewal Notice sent.")}>
+                                Send Renewal Notice
+                              </button>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td><strong>💼 High-Net-Worth Life Policies</strong> (Term 20-Year)</td>
+                            <td>{Math.round(980 * behaviourMultiplier).toLocaleString()}</td>
+                            <td>₹0</td>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div className="sla-progress-bar" style={{ width: '100px' }}><div className="fill" style={{ width: '88%', background: '#3b82f6' }}></div></div>
+                                <strong>88%</strong>
+                              </div>
+                            </td>
+                            <td><span className="status-badge idle">Moderate</span></td>
+                            <td>
+                              <button className="act-btn" onClick={() => triggerCrmAction("Nominee verification & VIP advisor renewal triggered.")}>
+                                Assign VIP Review
+                              </button>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td><strong>⚠️ Lapsed / Non-Payment Accounts</strong> (High Churn Risk)</td>
+                            <td>{Math.round(387 * behaviourMultiplier).toLocaleString()}</td>
+                            <td>₹14,500 (Overdue)</td>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div className="sla-progress-bar" style={{ width: '100px' }}><div className="fill" style={{ width: '38%', background: '#ef4444' }}></div></div>
+                                <strong>38%</strong>
+                              </div>
+                            </td>
+                            <td><span className="status-badge on-break">At-Risk Churn</span></td>
+                            <td>
+                              <button className="act-btn btn-blue" onClick={() => triggerCrmAction("Special Grace Period Waiver and Re-activation Offer issued.")}>
+                                Send Retention Offer
+                              </button>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ═══════════ ADD CLAIM BUDGET MODAL (PASSWORD PROTECTED) ═══════════ */}
+            {showAddBudgetModal && (
+              <div className="modal-overlay">
+                <div className="modal-card" style={{ maxWidth: '520px' }}>
+                  <div className="modal-header">
+                    <h3>💰 Authorize Claim Budget Deposit</h3>
+                    <button className="modal-close-btn" onClick={() => setShowAddBudgetModal(false)}>✖</button>
+                  </div>
+
+                  <div className="governance-notice-banner" style={{ margin: '14px 0', fontSize: '0.92rem' }}>
+                    <strong>Security Governance Rule:</strong> Only Claims Manager Diana Harlow can allocate treasury funds. All budget transactions are strictly additive (subtractions forbidden) and require manager password clearance.
+                  </div>
+
+                  <form onSubmit={handleAddBudget} style={{ marginTop: '16px' }}>
+                    <div style={{ marginBottom: '14px' }}>
+                      <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px', fontSize: '0.95rem' }}>
+                        Deposit Amount (₹): <span style={{ color: 'var(--danger-color)' }}>*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="any"
+                        value={budgetAddAmount}
+                        onChange={(e) => setBudgetAddAmount(e.target.value)}
+                        placeholder="e.g. 500000 (₹5 Lakh)"
+                        required
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '1rem' }}
+                      />
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Note: Positive values only. Reductions are disallowed by system policy.</span>
+                    </div>
+
+                    <div style={{ marginBottom: '14px' }}>
+                      <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px', fontSize: '0.95rem' }}>
+                        Target Allocation Line:
+                      </label>
+                      <select
+                        value={budgetCategory}
+                        onChange={(e) => setBudgetCategory(e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.95rem' }}
+                      >
+                        <option value="general">General Claim Liquidity Pool (Primary Budget)</option>
+                        <option value="auto">Auto Insurance Claim Reserves</option>
+                        <option value="home">Home & Property Claim Reserves</option>
+                      </select>
+                    </div>
+
+                    <div style={{ marginBottom: '16px' }}>
+                      <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px', fontSize: '0.95rem' }}>
+                        Manager Security Password: <span style={{ color: 'var(--danger-color)' }}>*</span>
+                      </label>
+                      <input
+                        type="password"
+                        value={budgetPassword}
+                        onChange={(e) => setBudgetPassword(e.target.value)}
+                        placeholder="Enter manager authorization password..."
+                        required
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '1rem' }}
+                      />
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Enter Claims Manager clearance password (<code>manager@nb123</code>).</span>
+                    </div>
+
+                    {budgetError && (
+                      <div className="error-box" style={{ marginBottom: '16px', padding: '10px 14px' }}>
+                        ⚠️ {budgetError}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
+                      <button type="button" className="act-btn" onClick={() => setShowAddBudgetModal(false)}>
+                        Cancel
+                      </button>
+                      <button type="submit" className="act-btn btn-green" style={{ padding: '10px 20px' }}>
+                        Authorize & Credit Budget
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -2243,7 +2997,7 @@ export default function App() {
                       <td><strong>{c.customer}</strong></td>
                       <td>{c.type}</td>
                       <td><strong>₹{c.amount.toLocaleString()}</strong></td>
-                      <td>{c.indicators.map((ind, j) => <div key={j} style={{ fontSize: '0.85rem', color: 'var(--danger-color)' }}>• {ind}</div>)}</td>
+                      <td>{c.indicators.map((ind, j) => <div key={j} style={{ fontSize: '0.98rem', color: 'var(--danger-color)' }}>• {ind}</div>)}</td>
                       <td style={{ display: 'flex', gap: '8px' }}>
                         <button className="act-btn" onClick={() => triggerCrmAction(`SIU Investigation: ${c.id}`)}>Investigate</button>
                         <button className="act-btn btn-green" onClick={() => handleResolveFraud(c.id)}>Mark Invalid (Save Payout)</button>
@@ -2265,15 +3019,15 @@ export default function App() {
               <div className="panel-col">
                 <div className="copilot-section">
                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>Gross Damages (₹):</label>
-                  <input type="number" value={calcClaimAmt} onChange={(e) => setCalcClaimAmt(Number(e.target.value))} style={{ width: '100%', padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '1rem' }} />
+                  <input type="number" value={calcClaimAmt} onChange={(e) => setCalcClaimAmt(Number(e.target.value))} style={{ width: '100%', padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '1.05rem' }} />
                 </div>
                 <div className="copilot-section" style={{ marginTop: '18px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>Deductible (₹):</label>
-                  <input type="number" value={calcDeductible} onChange={(e) => setCalcDeductible(Number(e.target.value))} style={{ width: '100%', padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '1rem' }} />
+                  <input type="number" value={calcDeductible} onChange={(e) => setCalcDeductible(Number(e.target.value))} style={{ width: '100%', padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '1.05rem' }} />
                 </div>
                 <div className="copilot-section" style={{ marginTop: '18px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>Comparative Liability (%):</label>
-                  <input type="number" value={calcLiabilityPct} onChange={(e) => setCalcLiabilityPct(Number(e.target.value))} style={{ width: '100%', padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '1rem' }} />
+                  <input type="number" value={calcLiabilityPct} onChange={(e) => setCalcLiabilityPct(Number(e.target.value))} style={{ width: '100%', padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '1.05rem' }} />
                 </div>
               </div>
               <div className="panel-col">
@@ -2324,7 +3078,7 @@ export default function App() {
                   </div>
                   <div className="risk-analytics-card" style={{ margin: '18px 0' }}>
                     <h4>AI Risk & Financial Analysis</h4>
-                    <div className="grid-3" style={{ fontSize: '0.9rem', marginTop: '12px' }}>
+                    <div className="grid-3" style={{ fontSize: '1.02rem', marginTop: '14px' }}>
                       <div>
                         <strong>Fraud Risk</strong>:{" "}
                         <span className="fraud-risk-hover-container">
@@ -2398,9 +3152,9 @@ export default function App() {
                 <div>
                   <span className="verified-badge">Verified Customer Context</span>
                   <h3 style={{ margin: '6px 0 0 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    {crmRecord.name} <code style={{ fontSize: '0.95rem' }}>({crmRecord.id})</code>
+                    {crmRecord.name} <code style={{ fontSize: '1.05rem' }}>({crmRecord.id})</code>
                   </h3>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '1.05rem', color: 'var(--text-secondary)' }}>
                     Policy: <strong>{crmRecord.policy_number}</strong> · {crmRecord.policy_type} ({crmRecord.status}) · Premium: ₹{crmRecord.premium}/yr · Outstanding: ₹{crmRecord.outstanding_premium.toFixed(2)}
                   </p>
                 </div>
@@ -2428,17 +3182,57 @@ export default function App() {
               </div>
             )}
 
+            {/* ═══════════ 🎭 CUSTOMER ⇄ AGENT ROLEPLAY SWITCHER ═══════════ */}
+            <div className="mimicry-toolbar-card">
+              <div className="mimicry-toolbar-header">
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>🎭 Live Roleplay Mode</span>
+                    <span className={`mimic-active-badge ${mimicRole}`}>
+                      {mimicRole === 'customer' ? "👤 You are the Customer" : "🎧 You are the Agent"}
+                    </span>
+                  </h4>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.92rem', color: '#94a3b8' }}>
+                    Switch roles freely — speak or type as the Customer to simulate calls, then flip to Agent to attend and resolve them.
+                  </p>
+                </div>
+
+                <div className="mimicry-role-toggle-group">
+                  <button
+                    type="button"
+                    className={`mimicry-role-btn ${mimicRole === 'customer' ? 'active customer' : ''}`}
+                    onClick={() => {
+                      setMimicRole('customer');
+                      setActiveChannel('customer_to_agent');
+                    }}
+                  >
+                    <span>👤 Act as Customer</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`mimicry-role-btn ${mimicRole === 'agent' ? 'active agent' : ''}`}
+                    onClick={() => {
+                      setMimicRole('agent');
+                      setActiveChannel('agent_to_customer');
+                    }}
+                  >
+                    <span>🎧 Act as Agent</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* ═══════════ 🎙️ DYNAMIC 3-WAY VOICE COMMUNICATION STUDIO ═══════════ */}
             <div className="voice-studio-container" style={{ marginTop: '24px' }}>
               <div className="voice-studio-header">
                 <h3>
                   <span>🎙️ Voice Communication Studio</span>
-                  <span className={`badge-live ${isTalking ? '' : 'inactive'}`} style={{ fontSize: '0.75rem', padding: '3px 10px', backgroundColor: isTalking ? '#22c55e' : '#64748b' }}>
+                  <span className={`badge-live ${isTalking ? '' : 'inactive'}`} style={{ fontSize: '0.82rem', padding: '4px 12px', backgroundColor: isTalking ? '#22c55e' : '#64748b' }}>
                     {isTalking ? "● Live Speech Active" : "○ Channel Standby"}
                   </span>
                 </h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
                     Active Language: <strong>{copilotLang}</strong>
                   </span>
                 </div>
@@ -2495,24 +3289,45 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Big Focused Sound Wave Visualizer Box */}
-              <div className="big-soundwave-card">
+              {/* Big Focused Sound Wave Visualizer Box (With Fullscreen Focus Maximize/Minimize) */}
+              <div className={`big-soundwave-card ${isCallingScreenMaximized ? 'maximized' : ''}`}>
                 <div className="big-soundwave-top">
-                  <div className="soundwave-channel-badge">
-                    <span className={`soundwave-status-indicator ${isTalking ? 'talking' : ''}`}></span>
-                    <span>
-                      {activeChannel === 'customer_to_agent' && "Active Channel: 📞 Caller Inbound Voice Stream"}
-                      {activeChannel === 'agent_to_copilot' && "Active Channel: 🤖 Agent to AI Copilot Consultation"}
-                      {activeChannel === 'agent_to_customer' && "Active Channel: 🗣️ Agent to Customer Outbound Audio"}
-                    </span>
+                  <div className="maximized-cockpit-meta">
+                    <div className="soundwave-channel-badge">
+                      <span className={`soundwave-status-indicator ${isTalking ? 'talking' : ''}`}></span>
+                      <span>
+                        {activeChannel === 'customer_to_agent' && "Active Channel: 📞 Caller Inbound Voice Stream"}
+                        {activeChannel === 'agent_to_copilot' && "Active Channel: 🤖 Agent to AI Copilot Consultation"}
+                        {activeChannel === 'agent_to_customer' && "Active Channel: 🗣️ Agent to Customer Outbound Audio"}
+                      </span>
+                    </div>
+
+                    {isCallingScreenMaximized && crmRecord && (
+                      <span className="maximized-customer-pill">
+                        👤 {crmRecord.name} ({crmRecord.id}) · {crmRecord.policy_number}
+                      </span>
+                    )}
                   </div>
 
                   <div className="soundwave-action-controls">
                     <button
                       type="button"
+                      className={`focus-screen-btn ${isCallingScreenMaximized ? 'active' : ''}`}
+                      onClick={() => setIsCallingScreenMaximized(prev => !prev)}
+                      title={isCallingScreenMaximized ? "Minimize Focus Screen (Esc)" : "Maximize Calling Screen to Full Focus"}
+                    >
+                      {isCallingScreenMaximized ? (
+                        <>🗗 Minimize Screen</>
+                      ) : (
+                        <>⛶ Maximize Screen</>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
                       className={`mic-btn ${isListening && activeMicTarget === 'studio' ? 'mic-btn-recording' : ''}`}
                       onClick={handleToggleChannelVoice}
-                      style={{ padding: '7px 16px', fontSize: '0.88rem' }}
+                      style={{ padding: '9px 18px', fontSize: '1rem' }}
                     >
                       {isListening && activeMicTarget === 'studio' ? (
                         <>🔴 Stop Mic</>
@@ -2526,7 +3341,7 @@ export default function App() {
                         type="button"
                         className={`btn-voice-speak ${speakingTextId === 'studio-resp' ? 'speaking' : ''}`}
                         onClick={() => handleSpeakText(copilotIntel.suggestedResponse, 'studio-resp')}
-                        style={{ padding: '7px 14px', fontSize: '0.85rem', color: '#ffffff', background: 'rgba(255,255,255,0.15)', borderColor: 'rgba(255,255,255,0.3)' }}
+                        style={{ padding: '9px 16px', fontSize: '0.95rem', color: '#ffffff', background: 'rgba(255,255,255,0.15)', borderColor: 'rgba(255,255,255,0.3)' }}
                       >
                         {speakingTextId === 'studio-resp' ? '⏹️ Stop Playback' : '🔊 Play Copilot Script'}
                       </button>
@@ -2534,12 +3349,96 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* In-Cockpit Channel Switcher & Mimicry Roleplay Switcher when Maximized */}
+                {isCallingScreenMaximized && (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '0.92rem', color: '#94a3b8' }}>🎭 Mimicry Role:</span>
+                      <div className="mimicry-role-toggle-group">
+                        <button
+                          type="button"
+                          className={`mimicry-role-btn ${mimicRole === 'customer' ? 'active customer' : ''}`}
+                          onClick={() => {
+                            setMimicRole('customer');
+                            setActiveChannel('customer_to_agent');
+                          }}
+                        >
+                          👤 Customer (Caller)
+                        </button>
+                        <button
+                          type="button"
+                          className={`mimicry-role-btn ${mimicRole === 'agent' ? 'active agent' : ''}`}
+                          onClick={() => {
+                            setMimicRole('agent');
+                            setActiveChannel('agent_to_customer');
+                          }}
+                        >
+                          🎧 Agent (Support)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="maximized-channel-nav">
+                      <button
+                        type="button"
+                        className={`maximized-channel-btn ${activeChannel === 'customer_to_agent' ? 'active' : ''}`}
+                        onClick={() => {
+                          setActiveChannel('customer_to_agent');
+                          if (isListening) stopListening();
+                        }}
+                      >
+                        📞 Mode 1: Customer Inbound
+                      </button>
+                      <button
+                        type="button"
+                        className={`maximized-channel-btn ${activeChannel === 'agent_to_copilot' ? 'active' : ''}`}
+                        onClick={() => {
+                          setActiveChannel('agent_to_copilot');
+                          if (isListening) stopListening();
+                        }}
+                      >
+                        🤖 Mode 2: Consult Copilot
+                      </button>
+                      <button
+                        type="button"
+                        className={`maximized-channel-btn ${activeChannel === 'agent_to_customer' ? 'active' : ''}`}
+                        onClick={() => {
+                          setActiveChannel('agent_to_customer');
+                          if (isListening) stopListening();
+                        }}
+                      >
+                        🗣️ Mode 3: Agent Outbound
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* 36-Bar Symmetrical Wave Visualizer - Moving Dynamically While Talking ONLY */}
                 <div className={`big-soundwave-visualizer ${isTalking ? `talking ${activeChannel === 'customer_to_agent' ? 'theme-customer' : activeChannel === 'agent_to_copilot' ? 'theme-copilot' : 'theme-agent'}` : 'idle'}`}>
                   {Array.from({ length: 36 }).map((_, i) => (
                     <div key={i} className="big-wave-bar"></div>
                   ))}
                 </div>
+
+                {/* Real-time Subtitle / Live Transcript Ticker in Maximized Mode */}
+                {isCallingScreenMaximized && (
+                  <div className="maximized-live-transcript-box">
+                    <div className="ticker-label">
+                      {isTalking ? "⚡ Live Real-Time Speech Stream" : "💬 Live Call Ticker & Next Best Action"}
+                    </div>
+                    <div className="ticker-text">
+                      {interimTranscript ? (
+                        `"${interimTranscript}"`
+                      ) : isSpeaking ? (
+                        "🔊 Voice synthesizer speaking resolution script to caller..."
+                      ) : copilotIntel.suggestedResponse ? (
+                        `Suggested Script: "${copilotIntel.suggestedResponse}"`
+                      ) : (
+                        "Agent attending live call. Click 'Talk on This Channel' to speak."
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="big-soundwave-footer">
                   <div>
@@ -2553,7 +3452,14 @@ export default function App() {
                       </span>
                     )}
                   </div>
-                  <span style={{ opacity: 0.75 }}>{isTalking ? "48kHz Live Dynamics" : "Acoustic Baseline Calibrated"}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    {isCallingScreenMaximized && (
+                      <span style={{ color: '#38bdf8', fontWeight: 600, fontSize: '0.95rem' }}>
+                        Press [ESC] to Minimize
+                      </span>
+                    )}
+                    <span style={{ opacity: 0.75 }}>{isTalking ? "48kHz Live Dynamics" : "Acoustic Baseline Calibrated"}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2590,7 +3496,7 @@ export default function App() {
                       <p>{crmRecord.coverage_details}</p>
                     </div>
 
-                    <div style={{ marginTop: '18px', padding: '10px 14px', backgroundColor: computeRiskTier(crmRecord) === 'High' ? 'rgba(239,68,68,0.08)' : computeRiskTier(crmRecord) === 'Medium' ? 'rgba(245,158,11,0.08)' : 'rgba(22,163,74,0.08)', borderLeft: `4px solid ${computeRiskTier(crmRecord) === 'High' ? 'var(--danger-color)' : computeRiskTier(crmRecord) === 'Medium' ? 'var(--warning-color)' : 'var(--success-color)'}`, borderRadius: '6px', fontSize: '0.95rem' }}>
+                    <div style={{ marginTop: '18px', padding: '12px 16px', backgroundColor: computeRiskTier(crmRecord) === 'High' ? 'rgba(239,68,68,0.08)' : computeRiskTier(crmRecord) === 'Medium' ? 'rgba(245,158,11,0.08)' : 'rgba(22,163,74,0.08)', borderLeft: `4px solid ${computeRiskTier(crmRecord) === 'High' ? 'var(--danger-color)' : computeRiskTier(crmRecord) === 'Medium' ? 'var(--warning-color)' : 'var(--success-color)'}`, borderRadius: '8px', fontSize: '1.02rem' }}>
                       <strong>Calculated Risk Tier: {computeRiskTier(crmRecord)}</strong>
                     </div>
 
@@ -2613,7 +3519,7 @@ export default function App() {
                 <div className="claims-summary-section" style={{ marginTop: '24px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <h4>Live Conversation Transcript</h4>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    <span style={{ fontSize: '0.92rem', color: 'var(--text-secondary)' }}>
                       🎤 Voice Active ({copilotLang})
                     </span>
                   </div>
@@ -2634,7 +3540,7 @@ export default function App() {
                   <div className="scrolling-transcript-panel" style={{ maxHeight: '240px', margin: '12px 0' }}>
                     {conversation.length === 0 ? (
                       <div className="empty-chat" style={{ height: '90px' }}>
-                        <p>Simulate caller speech below using your <strong>Microphone (🎤)</strong> or keyboard.</p>
+                        <p>Simulate caller speech below using your <strong>Microphone (🎤)</strong>, keyboard, or the <strong>Roleplay Scenarios</strong> above.</p>
                       </div>
                     ) : (
                       conversation.map((msg, idx) => (
@@ -2648,7 +3554,7 @@ export default function App() {
                             {speakingTextId === `msg-${idx}` ? "⏹️ Playing..." : "🔊 Play"}
                           </button>
                           <span className="speaker-name">
-                            {msg.sender === 'system' ? 'CRM Note' : msg.sender === 'customer' ? 'Caller' : 'Copilot Insight'}
+                            {msg.sender === 'system' ? 'CRM Note' : msg.sender === 'customer' ? (crmRecord ? `Caller (${crmRecord.name})` : 'Caller') : msg.sender === 'agent' ? 'Agent (You)' : 'Copilot Insight'}
                           </span>
                           <p>{msg.text}</p>
                         </div>
@@ -2656,23 +3562,38 @@ export default function App() {
                     )}
                   </div>
 
-                  <div className="speech-input-bar">
+                  <div className="speech-input-bar" style={{ gap: '8px' }}>
+                    <button
+                      type="button"
+                      className={`mimic-active-badge ${mimicRole}`}
+                      onClick={() => setMimicRole(r => r === 'customer' ? 'agent' : 'customer')}
+                      title="Click to toggle speaking role between Customer and Agent"
+                      style={{ cursor: 'pointer', flexShrink: 0, padding: '8px 12px' }}
+                    >
+                      {mimicRole === 'customer' ? "👤 Customer" : "🎧 Agent"}
+                    </button>
+
                     <input
                       type="text"
                       value={liveStatementInput}
                       onChange={(e) => setLiveStatementInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddStatement(liveStatementInput)}
-                      placeholder={isListening && activeMicTarget === 'caller' ? `🎙️ Listening in ${copilotLang}... Speak your statement now!` : "Simulate caller speech (e.g., 'I want to change the nominee on my policy')..."}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSendLiveSpeechOrText()}
+                      placeholder={
+                        mimicRole === 'customer'
+                          ? (isListening && activeMicTarget === 'caller' ? `🎙️ Listening in ${copilotLang}... Speak customer statement!` : "👤 Speak/type as Customer (e.g. 'I had an auto accident')...")
+                          : (isListening && activeMicTarget === 'caller' ? `🎙️ Listening in ${copilotLang}... Speak agent response!` : "🎧 Speak/type as Agent (e.g. 'I will file your claim immediately')...")
+                      }
                     />
+
                     <button
                       type="button"
                       className={`mic-btn ${isListening && activeMicTarget === 'caller' ? 'mic-btn-recording' : ''}`}
                       onClick={handleToggleCallerMic}
-                      title={isListening && activeMicTarget === 'caller' ? "Stop voice listening" : "Click to speak statement"}
+                      title={isListening && activeMicTarget === 'caller' ? "Stop voice listening" : "Click to speak with microphone"}
                     >
                       {isListening && activeMicTarget === 'caller' ? (
                         <>
-                          <span>🔴 Live Mic</span>
+                          <span>🔴 Live</span>
                           <div className="audio-wave-container">
                             <span className="audio-wave-bar"></span>
                             <span className="audio-wave-bar"></span>
@@ -2684,7 +3605,14 @@ export default function App() {
                         <span>🎤 Speak</span>
                       )}
                     </button>
-                    <button onClick={() => handleAddStatement(liveStatementInput)}>Simulate Speech</button>
+
+                    <button
+                      type="button"
+                      className={`submit-btn ${mimicRole === 'agent' ? 'btn-blue' : ''}`}
+                      onClick={() => handleSendLiveSpeechOrText()}
+                    >
+                      {mimicRole === 'customer' ? "Send as Customer" : "Send as Agent"}
+                    </button>
                   </div>
 
                   {isListening && activeMicTarget === 'caller' && interimTranscript && (
@@ -2692,7 +3620,7 @@ export default function App() {
                       <span className="live-voice-preview-text">
                         🎙️ <em>"{interimTranscript}"</em>
                       </span>
-                      <span style={{ fontSize: '0.75rem', opacity: 0.85 }}>Transcribing live ({copilotLang})...</span>
+                      <span style={{ fontSize: '0.85rem', opacity: 0.85 }}>Transcribing ({mimicRole === 'customer' ? 'Customer' : 'Agent'})...</span>
                     </div>
                   )}
                 </div>
@@ -2744,7 +3672,7 @@ export default function App() {
                         <div><strong>Outstanding</strong>: {crmRecord.outstanding_premium > 0 ? `₹${crmRecord.outstanding_premium.toFixed(2)}` : '₹0.00 (Paid)'}</div>
                       </div>
                     ) : (
-                      <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>No customer verified yet.</p>
+                      <p style={{ fontSize: '1.02rem', color: 'var(--text-secondary)' }}>No customer verified yet.</p>
                     )}
                   </div>
 
@@ -2752,7 +3680,7 @@ export default function App() {
                   <div className="copilot-section-card">
                     <div className="copilot-section-header">3. Agent Guidance</div>
                     
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <strong>Suggested Agent Response:</strong>
                       <button
                         type="button"
@@ -2781,7 +3709,7 @@ export default function App() {
                     </div>
 
                     {copilotIntel.suggestedQuestions.length > 0 && (
-                      <div style={{ marginTop: '12px' }}>
+                      <div style={{ marginTop: '14px' }}>
                         <strong>Suggested Questions to Ask Caller:</strong>
                         <div className="suggested-q-list">
                           {copilotIntel.suggestedQuestions.map((q, qidx) => (
@@ -2811,18 +3739,18 @@ export default function App() {
                     )}
 
                     {copilotIntel.reqDocs.length > 0 && (
-                      <div style={{ marginTop: '12px' }}>
+                      <div style={{ marginTop: '14px' }}>
                         <strong>Required Documents:</strong>
-                        <div className="req-docs-group" style={{ marginTop: '6px' }}>
+                        <div className="req-docs-group" style={{ marginTop: '8px' }}>
                           {copilotIntel.reqDocs.map((doc, i) => <span key={i} className="doc-pill">{doc}</span>)}
                         </div>
                       </div>
                     )}
 
                     {copilotIntel.alerts.length > 0 && (
-                      <div style={{ marginTop: '12px' }}>
+                      <div style={{ marginTop: '14px' }}>
                         <strong>Active Alerts & Notes:</strong>
-                        <div className="policy-alerts-group" style={{ marginTop: '6px' }}>
+                        <div className="policy-alerts-group" style={{ marginTop: '8px' }}>
                           {copilotIntel.alerts.map((al, i) => (
                             <div key={i} className="alert-item" style={{ color: al.includes("High-risk") || al.includes("Escalation") || al.includes("Handbook limitation") ? 'var(--danger-color)' : 'var(--warning-color)' }}>
                               {al}
@@ -2835,7 +3763,7 @@ export default function App() {
                 </div>
 
                 {/* Contextual CRM Actions */}
-                <div className="copilot-actions-footer" style={{ marginTop: '18px' }}>
+                <div className="copilot-actions-footer" style={{ marginTop: '20px' }}>
                   <strong>Contextual CRM Actions:</strong>
                   <div className="action-buttons-grid">
                     {getContextualActions(copilotIntel.intent).map((action, i) => (
@@ -2852,7 +3780,7 @@ export default function App() {
             <div className="content-card RAG-search-card" style={{ marginTop: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <h3>Policy Handbook Direct Search</h3>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                <span style={{ fontSize: '0.92rem', color: 'var(--text-secondary)' }}>
                   Dictate with 🎤 or listen with 🔊
                 </span>
               </div>
@@ -2895,7 +3823,7 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              <div className="chat-input-bar" style={{ marginTop: '14px' }}>
+              <div className="chat-input-bar" style={{ marginTop: '16px' }}>
                 <div className="input-with-mic-wrapper">
                   <input 
                     type="text" 
@@ -2929,14 +3857,14 @@ export default function App() {
                 <button className="modal-close-btn" onClick={() => setShowCallbackModal(false)}>✖</button>
               </div>
               <form onSubmit={handleConfirmCallback}>
-                <div style={{ marginBottom: '16px', fontSize: '0.95rem' }}>
+                <div style={{ marginBottom: '18px', fontSize: '1.02rem' }}>
                   <strong>Handling Agent:</strong> {user.name} (<code>{user.id}</code>)<br/>
                   <strong>Customer Context:</strong> {crmRecord ? `${crmRecord.name} (${crmRecord.id})` : 'Charlie Davis (CRM-103)'}<br/>
                   <strong>Policy:</strong> {crmRecord ? `${crmRecord.policy_number} · ${crmRecord.policy_type}` : 'POL-LIFE-303 · Term Life'}
                 </div>
 
-                <div style={{ marginBottom: '18px' }}>
-                  <label style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ fontWeight: 600, fontSize: '1.02rem', color: 'var(--text-primary)' }}>
                     Select Date & Time (Calendar Picker):
                   </label>
                   <input
@@ -2946,18 +3874,18 @@ export default function App() {
                     onChange={(e) => setCallbackDateTime(e.target.value)}
                     required
                   />
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'block', marginTop: '4px' }}>
+                  <span style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', display: 'block', marginTop: '6px' }}>
                     Alarm notification will be shown strictly to {user.name} ({user.id}) at the scheduled time.
                   </span>
                 </div>
 
-                <div style={{ marginBottom: '24px' }}>
-                  <label style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                <div style={{ marginBottom: '26px' }}>
+                  <label style={{ fontWeight: 600, fontSize: '1.02rem', color: 'var(--text-primary)' }}>
                     Callback Reason / Notes:
                   </label>
                   <textarea
                     rows="3"
-                    style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border-color)', borderRadius: '6px', marginTop: '6px', fontSize: '0.95rem' }}
+                    style={{ width: '100%', padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '8px', marginTop: '8px', fontSize: '1.02rem' }}
                     value={callbackReason}
                     onChange={(e) => setCallbackReason(e.target.value)}
                     placeholder="Enter reason for scheduling callback..."
@@ -2982,16 +3910,16 @@ export default function App() {
             <div className="alarm-modal-card">
               <div className="alarm-banner">
                 <div>
-                  <div style={{ fontSize: '1.1rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>SCHEDULED CALLBACK ALARM DUE NOW!</div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 'normal', color: '#7f1d1d' }}>Assigned Agent: {user.name} ({user.id})</div>
+                  <div style={{ fontSize: '1.15rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>SCHEDULED CALLBACK ALARM DUE NOW!</div>
+                  <div style={{ fontSize: '0.92rem', fontWeight: 'normal', color: '#7f1d1d' }}>Assigned Agent: {user.name} ({user.id})</div>
                 </div>
               </div>
 
-              <div style={{ fontSize: '1rem', lineHeight: '1.6', marginBottom: '18px' }}>
+              <div style={{ fontSize: '1.05rem', lineHeight: '1.6', marginBottom: '20px' }}>
                 <p style={{ margin: '6px 0' }}><strong>Customer:</strong> {activeAlarm.customerName} (<code>{activeAlarm.customerId}</code>)</p>
                 <p style={{ margin: '6px 0' }}><strong>Policy:</strong> <code>{activeAlarm.policyNumber}</code></p>
                 <p style={{ margin: '6px 0' }}><strong>Scheduled Time:</strong> {new Date(activeAlarm.scheduledTime).toLocaleString()}</p>
-                <div style={{ marginTop: '12px', padding: '10px 14px', backgroundColor: '#f9fafb', borderLeft: '4px solid #dc2626', borderRadius: '6px', fontSize: '0.95rem' }}>
+                <div style={{ marginTop: '14px', padding: '12px 16px', backgroundColor: '#f9fafb', borderLeft: '4px solid #dc2626', borderRadius: '8px', fontSize: '1.02rem' }}>
                   <strong>Reason:</strong> {activeAlarm.reason}
                 </div>
               </div>

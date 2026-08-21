@@ -1,12 +1,25 @@
-from typing import Dict, Any, Optional
+import os
+import json
+from typing import Dict, Any, Optional, List
 
 class CRMService:
     """
-    Mock CRM service providing lookup of policyholders, active policies, and claim history.
+    Enterprise CRM Service providing customer identity verification,
+    policyholder lookups, active coverage specs, claims history,
+    and interaction audit trails. Supports both in-memory and MongoDB document store.
     """
-    def __init__(self):
-        # Setup mock customer database with rich enterprise profile details
-        self.db = {
+    def __init__(self, collections_dir: Optional[str] = None):
+        if collections_dir is None:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            self.collections_dir = os.path.join(base_dir, "mongodb_collections")
+        else:
+            self.collections_dir = collections_dir
+            
+        os.makedirs(self.collections_dir, exist_ok=True)
+        self.customers_file = os.path.join(self.collections_dir, "customers.json")
+
+        # Baseline enterprise customer profile database
+        self.default_db = {
             "CRM-101": {
                 "id": "CRM-101",
                 "name": "Alice Smith",
@@ -90,21 +103,102 @@ class CRMService:
                 ]
             }
         }
+        
+        self._sync_storage()
+
+    def _sync_storage(self):
+        """
+        Synchronizes customer database with mongodb_collections/customers.json.
+        """
+        if not os.path.exists(self.customers_file):
+            try:
+                with open(self.customers_file, "w", encoding="utf-8") as f:
+                    json.dump(list(self.default_db.values()), f, indent=2)
+            except Exception:
+                pass
+
+    def get_all_customers(self) -> List[Dict[str, Any]]:
+        """
+        Returns all customer records from storage.
+        """
+        if os.path.exists(self.customers_file):
+            try:
+                with open(self.customers_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if data:
+                        return data
+            except Exception:
+                pass
+        return list(self.default_db.values())
 
     def lookup_customer(self, identifier: str) -> Optional[Dict[str, Any]]:
         """
-        Lookup customer details by CRM ID, Name, Phone, Email, or Policy Number (case insensitive).
+        Robust lookup of customer details by CRM ID, Name, Phone, Email,
+        or Policy Number (case-insensitive and trimmed).
         """
-        val = identifier.strip().upper()
-        if val in self.db:
-            return self.db[val]
-        
-        # Search match across fields
-        for customer in self.db.values():
-            if (val.lower() in customer["name"].lower() or
-                val in customer["phone"] or
-                val.lower() in customer["email"].lower() or
-                val in customer["policy_number"].upper()):
+        if not identifier:
+            return None
+            
+        clean = identifier.strip()
+        clean_upper = clean.upper()
+        clean_lower = clean.lower()
+        clean_digits = "".join(filter(str.isdigit, clean))
+
+        customers = self.get_all_customers()
+
+        # 1. Exact ID match (e.g. CRM-101)
+        for customer in customers:
+            if customer.get("id", "").upper() == clean_upper:
                 return customer
-                
+
+        # 2. Exact Policy Number match (e.g. POL-AUTO-501)
+        for customer in customers:
+            if customer.get("policy_number", "").upper() == clean_upper:
+                return customer
+
+        # 3. Exact Email or Phone match
+        for customer in customers:
+            if customer.get("email", "").lower() == clean_lower:
+                return customer
+            if clean_digits and "".join(filter(str.isdigit, customer.get("phone", ""))) == clean_digits:
+                return customer
+
+        # 4. Partial Name / Keyword search
+        for customer in customers:
+            cust_name = customer.get("name", "").lower()
+            if clean_lower in cust_name or cust_name in clean_lower:
+                return customer
+            if clean_upper in customer.get("policy_number", "").upper():
+                return customer
+            if clean_lower in customer.get("email", "").lower():
+                return customer
+
         return None
+
+    def upsert_customer(self, customer_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Insert or update a customer record in storage.
+        """
+        cid = customer_data.get("id")
+        if not cid:
+            cid = f"CRM-{len(self.get_all_customers()) + 101}"
+            customer_data["id"] = cid
+
+        customers = self.get_all_customers()
+        updated = False
+        for i, c in enumerate(customers):
+            if c.get("id") == cid:
+                customers[i] = {**c, **customer_data}
+                updated = True
+                break
+
+        if not updated:
+            customers.append(customer_data)
+
+        try:
+            with open(self.customers_file, "w", encoding="utf-8") as f:
+                json.dump(customers, f, indent=2)
+        except Exception:
+            pass
+
+        return customer_data

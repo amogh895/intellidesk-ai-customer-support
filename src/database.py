@@ -81,15 +81,55 @@ class SQLDatabaseManager:
             );
             """)
             
-            # Seed initial reserve baseline if empty
+            # Seed initial reserve baseline at zero
             cursor.execute("SELECT COUNT(*) FROM financial_reserves")
             if cursor.fetchone()[0] == 0:
                 cursor.execute("""
                 INSERT INTO financial_reserves (id, ytd_loss, budget, fraud_savings, auto_reserves, home_reserves)
-                VALUES (1, 1200000.0, 1500000.0, 245000.0, 450000.0, 780000.0)
+                VALUES (1, 0.0, 0.0, 0.0, 0.0, 0.0)
                 """)
 
             conn.commit()
+
+    def get_financial_reserves(self) -> Dict[str, float]:
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT ytd_loss, budget, fraud_savings, auto_reserves, home_reserves FROM financial_reserves WHERE id = 1")
+            row = cursor.fetchone()
+            if row:
+                return dict(row)
+            return {"ytd_loss": 0.0, "budget": 0.0, "fraud_savings": 0.0, "auto_reserves": 0.0, "home_reserves": 0.0}
+
+    def add_claim_budget(self, amount: float, category: str = "general") -> Dict[str, Any]:
+        """
+        Secure budget addition (strictly positive, non-subtractive).
+        """
+        if amount <= 0:
+            raise ValueError("Budget addition amount must be strictly greater than 0.")
+            
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            current = self.get_financial_reserves()
+            new_budget = current["budget"] + amount
+            new_auto = current["auto_reserves"] + (amount if category == "auto" else 0.0)
+            new_home = current["home_reserves"] + (amount if category == "home" else 0.0)
+
+            cursor.execute("""
+            UPDATE financial_reserves
+            SET budget = ?, auto_reserves = ?, home_reserves = ?
+            WHERE id = 1
+            """, (new_budget, new_auto, new_home))
+            conn.commit()
+
+            return {
+                "status": "success",
+                "message": f"Successfully credited ₹{amount:,.2f} to Claim Budget.",
+                "updated_reserves": {
+                    "budget": new_budget,
+                    "auto_reserves": new_auto,
+                    "home_reserves": new_home
+                }
+            }
 
     def insert_claim_decision(self, decision_doc: Dict[str, Any]):
         with self.get_connection() as conn:
@@ -129,7 +169,7 @@ class SQLDatabaseManager:
 
 class MongoDocumentManager:
     """
-    MongoDB Document Store Manager (JSON / BSON Compliant Document Engine)
+    MongoDB Document Store Manager (supports live MongoDB Atlas Cluster with local JSON fallback)
     Manages document-oriented collections:
     - customers collection
     - call_records collection
@@ -137,11 +177,34 @@ class MongoDocumentManager:
     """
     def __init__(self, collections_dir=MONGO_JSON_DIR):
         self.dir = collections_dir
+        self.mongo_uri = os.getenv("MONGO_URI") or os.getenv("MONGODB_URI")
+        self.client = None
+        self.db = None
+
+        if self.mongo_uri:
+            try:
+                import pymongo
+                self.client = pymongo.MongoClient(self.mongo_uri, serverSelectionTimeoutMS=3000)
+                self.db = self.client.get_database("intellidesk_db")
+                # Test connection ping
+                self.client.admin.command('ping')
+                print("Connected to MongoDB Atlas Cluster successfully!")
+            except Exception as e:
+                print(f"⚠️ MongoDB Atlas connection notice: {e}. Falling back to resilient document store.")
+                self.client = None
+                self.db = None
 
     def _get_coll_path(self, coll_name: str) -> str:
         return os.path.join(self.dir, f"{coll_name}.json")
 
     def find(self, coll_name: str, query: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        if self.db is not None:
+            try:
+                results = list(self.db[coll_name].find(query or {}, {"_id": 0}))
+                return results
+            except Exception:
+                pass
+
         path = self._get_coll_path(coll_name)
         if not os.path.exists(path):
             return []
@@ -150,7 +213,6 @@ class MongoDocumentManager:
                 docs = json.load(f)
             if not query:
                 return docs
-            # Simple field matching query filter
             filtered = []
             for d in docs:
                 match = True
@@ -165,6 +227,12 @@ class MongoDocumentManager:
             return []
 
     def insert_one(self, coll_name: str, doc: Dict[str, Any]) -> Dict[str, Any]:
+        if self.db is not None:
+            try:
+                self.db[coll_name].insert_one(dict(doc))
+            except Exception:
+                pass
+
         docs = self.find(coll_name)
         docs.insert(0, doc)
         path = self._get_coll_path(coll_name)
@@ -173,6 +241,12 @@ class MongoDocumentManager:
         return doc
 
     def update_one(self, coll_name: str, match_key: str, match_val: str, update_fields: Dict[str, Any]) -> bool:
+        if self.db is not None:
+            try:
+                self.db[coll_name].update_one({match_key: match_val}, {"$set": update_fields})
+            except Exception:
+                pass
+
         docs = self.find(coll_name)
         updated = False
         for d in docs:
