@@ -2,6 +2,9 @@ import os
 import sqlite3
 import json
 from typing import Dict, Any, List, Optional
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Database Storage Directory
 DB_DIR = os.path.dirname(os.path.abspath(__file__))
