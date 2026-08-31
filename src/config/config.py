@@ -21,4 +21,8 @@ class Settings:
     # Document folder
     DATA_DIR: Path = Path("data")
 
+    # Copilot autonomy: when True, informational draft_reply auto-sends without HITL.
+    # Escalations always require human approval regardless of this flag.
+    COPILOT_AUTONOMY: bool = os.getenv("COPILOT_AUTONOMY", "true").lower() in ("1", "true", "yes")
+
 settings = Settings()

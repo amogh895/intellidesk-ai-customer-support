@@ -450,6 +450,9 @@ export default function App() {
   // Language Driver
   const [copilotLang, setCopilotLang] = useState('English');
 
+  // Copilot Autonomy — when ON, Copilot replies to customer on safe intents without agent relay
+  const [copilotAutonomy, setCopilotAutonomy] = useState(true);
+
   // Voice Integration Engine (STT & TTS + 3-Way Switching Studio)
   const {
     isSTTSupported,
@@ -499,6 +502,37 @@ export default function App() {
   const [conversation, setConversation] = useState([]);
   const [liveStatementInput, setLiveStatementInput] = useState('');
 
+  // Intents Copilot may handle alone (no agent relay / no HITL)
+  const SAFE_AUTONOMY_INTENTS = new Set([
+    "General Policy Inquiry",
+    "Billing & Premium Inquiry",
+    "Premium Payment / Policy Status",
+    "Policy Handbook Inquiry"
+  ]);
+
+  const isSafeForAutonomy = (intent, sentiment, urgency) => {
+    if (!SAFE_AUTONOMY_INTENTS.has(intent)) return false;
+    if (urgency === "High") return false;
+    if (sentiment === "Frustrated") return false;
+    return true;
+  };
+
+  const deliverCopilotToCustomer = (replyText, meta = {}) => {
+    if (!replyText || !replyText.trim()) return;
+    const text = replyText.trim();
+    setConversation(prev => [
+      ...prev,
+      {
+        sender: "copilot",
+        text,
+        autoDelivered: true,
+        ...meta
+      }
+    ]);
+    try {
+      speak(text, { id: `auto-copilot-${Date.now()}`, language: copilotLang });
+    } catch (e) { /* TTS optional */ }
+  };
   // Enterprise Copilot Assist (4-Section Structure)
   const [copilotIntel, setCopilotIntel] = useState({
     intent: "General Policy Inquiry",
@@ -572,21 +606,12 @@ export default function App() {
     }, 650);
   };
 
-  // ─── CUSTOMER / AGENT MIMICRY (TESTING & SIMULTANEOUS ROLEPLAY MODE) ───
-  const [mimicRole, setMimicRole] = useState('customer'); // 'customer' | 'agent'
-
+  // ─── LIVE SPEECH OR TEXT INPUT HANDLER ───
   const handleSendLiveSpeechOrText = async (customText = liveStatementInput) => {
     if (!customText || !customText.trim()) return;
     const textToSend = customText.trim();
     setLiveStatementInput('');
-
-    if (mimicRole === 'customer') {
-      // Send as Customer — triggers Copilot analysis
-      await handleAddStatement(textToSend);
-    } else {
-      // Send as Agent
-      setConversation(prev => [...prev, { sender: "agent", text: textToSend }]);
-    }
+    await handleAddStatement(textToSend);
   };
 
   // ─── HELPER: Execute Action with Center-Screen Loading Modal ───
@@ -1033,21 +1058,28 @@ export default function App() {
 
       setConversation(prev => [...prev, { sender: "customer", text: statementText }]);
       setLiveStatementInput('');
+      const verifyReply = "Certainly, I'd be happy to help with your policy. May I please have your CRM ID, policy number, or full name to verify your account first?";
       setCopilotIntel({
         intent: text.includes("nominee") ? "Nominee / Beneficiary Change" : "General Policy Inquiry",
         sentiment: "Neutral",
         urgency: "Low",
         stage: "Opening",
-        suggestedResponse: "Certainly, I'd be happy to help with your policy. May I please have your CRM ID, policy number, or full name to verify your account first?",
+        suggestedResponse: verifyReply,
         suggestedQuestions: [
           "Can you provide your CRM ID or policy number?",
           "Are you the primary policyholder on the account?"
         ],
-        nextAction: "Verify customer identity to access policy files",
+        nextAction: copilotAutonomy
+          ? "Copilot asked customer to verify identity"
+          : "Verify customer identity to access policy files",
         policyRule: "Account verification required before accessing specific policy files.",
         reqDocs: [],
-        alerts: ["Customer identity unverified"]
+        alerts: ["Customer identity unverified"],
+        autoHandled: !!copilotAutonomy
       });
+      if (copilotAutonomy) {
+        deliverCopilotToCustomer(verifyReply, { intent: "General Policy Inquiry" });
+      }
       return;
     }
 
@@ -1164,7 +1196,12 @@ export default function App() {
         const res = await fetch(`${BACKEND_URL}/api/query`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: statementText, thread_id: threadId, customer_id: crmRecord.id })
+          body: JSON.stringify({
+            query: statementText,
+            thread_id: threadId,
+            customer_id: crmRecord.id,
+            autonomy: copilotAutonomy
+          })
         });
         if (res.ok) {
           const data = await res.json();
@@ -1181,12 +1218,23 @@ export default function App() {
             const updated = [...prev];
             for (let i = updated.length - 1; i >= 0; i--) {
               if (updated[i].isLoading) {
-                updated[i] = { sender: "copilot", text: answerText, msgIndex: i };
+                updated[i] = {
+                  sender: "copilot",
+                  text: answerText,
+                  msgIndex: i,
+                  autoDelivered: copilotAutonomy
+                };
                 break;
               }
             }
             return updated;
           });
+
+          if (copilotAutonomy) {
+            try {
+              speak(answerText, { id: `auto-handbook-${Date.now()}`, language: copilotLang });
+            } catch (e) { /* TTS optional */ }
+          }
 
           suggestedResponse = answerText;
           policyRule = "Handbook Rule retrieved from internal docs database.";
@@ -1195,7 +1243,9 @@ export default function App() {
             "Would you like me to email a copy of this handbook section?",
             "Is there anything else regarding your coverage I can check?"
           ];
-          nextAction = "Relay handbook answer to caller and verify satisfaction";
+          nextAction = copilotAutonomy
+            ? "Copilot auto-replied from handbook — monitor for follow-up"
+            : "Relay handbook answer to caller and verify satisfaction";
         }
       } catch (e) {
         // Fallback
@@ -1214,17 +1264,32 @@ export default function App() {
     if (isNomineeChange) alerts.push("Handbook limitation: verify internal procedure or escalate if tool unavailable");
     if (urgency === "High") alerts.push("Escalation may be required");
 
+    const finalSuggested = suggestedResponse || "I can assist you with your policy details.";
+    const canAutoHandle = copilotAutonomy && isSafeForAutonomy(intent, sentiment, urgency);
+    // Handbook path already delivered into the transcript above
+    const alreadyInTranscript = intent === "Policy Handbook Inquiry";
+
+    if (canAutoHandle && !alreadyInTranscript && finalSuggested) {
+      deliverCopilotToCustomer(finalSuggested, { intent });
+      nextAction = "Copilot auto-handled customer — agent monitoring only";
+      alerts.push("Autonomous reply delivered to customer");
+    } else if (copilotAutonomy && !canAutoHandle) {
+      alerts.push("Human review required — Copilot will not auto-reply on this intent");
+      nextAction = nextAction || "Agent must review and respond — high-risk or sensitive intent";
+    }
+
     setCopilotIntel({
       intent,
       sentiment,
       urgency,
       stage,
-      suggestedResponse: suggestedResponse || "I can assist you with your policy details.",
+      suggestedResponse: finalSuggested,
       suggestedQuestions,
       nextAction: nextAction || "Assist customer with their inquiry",
       policyRule: policyRule || "Standard NorthBridge Assurance policy rules apply.",
       reqDocs,
-      alerts
+      alerts,
+      autoHandled: canAutoHandle
     });
   };
 
@@ -1328,7 +1393,12 @@ export default function App() {
       const res = await fetch(`${BACKEND_URL}/api/query`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: userQuery, thread_id: threadId, customer_id: crmRecord?.id })
+        body: JSON.stringify({
+          query: userQuery,
+          thread_id: threadId,
+          customer_id: crmRecord?.id,
+          autonomy: copilotAutonomy
+        })
       });
       if (res.ok) {
         const data = await res.json();
@@ -3182,45 +3252,7 @@ export default function App() {
               </div>
             )}
 
-            {/* ═══════════ 🎭 CUSTOMER ⇄ AGENT ROLEPLAY SWITCHER ═══════════ */}
-            <div className="mimicry-toolbar-card">
-              <div className="mimicry-toolbar-header">
-                <div>
-                  <h4 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>🎭 Live Roleplay Mode</span>
-                    <span className={`mimic-active-badge ${mimicRole}`}>
-                      {mimicRole === 'customer' ? "👤 You are the Customer" : "🎧 You are the Agent"}
-                    </span>
-                  </h4>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '0.92rem', color: '#94a3b8' }}>
-                    Switch roles freely — speak or type as the Customer to simulate calls, then flip to Agent to attend and resolve them.
-                  </p>
-                </div>
 
-                <div className="mimicry-role-toggle-group">
-                  <button
-                    type="button"
-                    className={`mimicry-role-btn ${mimicRole === 'customer' ? 'active customer' : ''}`}
-                    onClick={() => {
-                      setMimicRole('customer');
-                      setActiveChannel('customer_to_agent');
-                    }}
-                  >
-                    <span>👤 Act as Customer</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`mimicry-role-btn ${mimicRole === 'agent' ? 'active agent' : ''}`}
-                    onClick={() => {
-                      setMimicRole('agent');
-                      setActiveChannel('agent_to_customer');
-                    }}
-                  >
-                    <span>🎧 Act as Agent</span>
-                  </button>
-                </div>
-              </div>
-            </div>
 
             {/* ═══════════ 🎙️ DYNAMIC 3-WAY VOICE COMMUNICATION STUDIO ═══════════ */}
             <div className="voice-studio-container" style={{ marginTop: '24px' }}>
@@ -3349,34 +3381,9 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* In-Cockpit Channel Switcher & Mimicry Roleplay Switcher when Maximized */}
+                {/* In-Cockpit Channel Switcher when Maximized */}
                 {isCallingScreenMaximized && (
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '0.92rem', color: '#94a3b8' }}>🎭 Mimicry Role:</span>
-                      <div className="mimicry-role-toggle-group">
-                        <button
-                          type="button"
-                          className={`mimicry-role-btn ${mimicRole === 'customer' ? 'active customer' : ''}`}
-                          onClick={() => {
-                            setMimicRole('customer');
-                            setActiveChannel('customer_to_agent');
-                          }}
-                        >
-                          👤 Customer (Caller)
-                        </button>
-                        <button
-                          type="button"
-                          className={`mimicry-role-btn ${mimicRole === 'agent' ? 'active agent' : ''}`}
-                          onClick={() => {
-                            setMimicRole('agent');
-                            setActiveChannel('agent_to_customer');
-                          }}
-                        >
-                          🎧 Agent (Support)
-                        </button>
-                      </div>
-                    </div>
 
                     <div className="maximized-channel-nav">
                       <button
@@ -3540,7 +3547,7 @@ export default function App() {
                   <div className="scrolling-transcript-panel" style={{ maxHeight: '240px', margin: '12px 0' }}>
                     {conversation.length === 0 ? (
                       <div className="empty-chat" style={{ height: '90px' }}>
-                        <p>Simulate caller speech below using your <strong>Microphone (🎤)</strong>, keyboard, or the <strong>Roleplay Scenarios</strong> above.</p>
+                        <p>Simulate caller speech below using your <strong>Microphone (🎤)</strong>, keyboard, or the <strong>Quick Scenarios</strong> above.</p>
                       </div>
                     ) : (
                       conversation.map((msg, idx) => (
@@ -3554,34 +3561,31 @@ export default function App() {
                             {speakingTextId === `msg-${idx}` ? "⏹️ Playing..." : "🔊 Play"}
                           </button>
                           <span className="speaker-name">
-                            {msg.sender === 'system' ? 'CRM Note' : msg.sender === 'customer' ? (crmRecord ? `Caller (${crmRecord.name})` : 'Caller') : msg.sender === 'agent' ? 'Agent (You)' : 'Copilot Insight'}
+                            {msg.sender === 'system' ? 'CRM Note'
+                              : msg.sender === 'customer' ? (crmRecord ? `Caller (${crmRecord.name})` : 'Caller')
+                              : msg.sender === 'agent' ? 'Agent (You)'
+                              : msg.autoDelivered ? 'Copilot → Customer (Auto)'
+                              : 'Copilot Insight'}
                           </span>
                           <p>{msg.text}</p>
+                          {msg.autoDelivered && (
+                            <span className="auto-delivered-chip">Autonomous reply</span>
+                          )}
                         </div>
                       ))
                     )}
                   </div>
 
                   <div className="speech-input-bar" style={{ gap: '8px' }}>
-                    <button
-                      type="button"
-                      className={`mimic-active-badge ${mimicRole}`}
-                      onClick={() => setMimicRole(r => r === 'customer' ? 'agent' : 'customer')}
-                      title="Click to toggle speaking role between Customer and Agent"
-                      style={{ cursor: 'pointer', flexShrink: 0, padding: '8px 12px' }}
-                    >
-                      {mimicRole === 'customer' ? "👤 Customer" : "🎧 Agent"}
-                    </button>
-
                     <input
                       type="text"
                       value={liveStatementInput}
                       onChange={(e) => setLiveStatementInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSendLiveSpeechOrText()}
                       placeholder={
-                        mimicRole === 'customer'
-                          ? (isListening && activeMicTarget === 'caller' ? `🎙️ Listening in ${copilotLang}... Speak customer statement!` : "👤 Speak/type as Customer (e.g. 'I had an auto accident')...")
-                          : (isListening && activeMicTarget === 'caller' ? `🎙️ Listening in ${copilotLang}... Speak agent response!` : "🎧 Speak/type as Agent (e.g. 'I will file your claim immediately')...")
+                        isListening && activeMicTarget === 'caller'
+                          ? `🎙️ Listening in ${copilotLang}... Speak customer statement!`
+                          : "👤 Speak or type customer statement (e.g. 'I had an auto accident')..."
                       }
                     />
 
@@ -3608,10 +3612,10 @@ export default function App() {
 
                     <button
                       type="button"
-                      className={`submit-btn ${mimicRole === 'agent' ? 'btn-blue' : ''}`}
+                      className="submit-btn"
                       onClick={() => handleSendLiveSpeechOrText()}
                     >
-                      {mimicRole === 'customer' ? "Send as Customer" : "Send as Agent"}
+                      Send Statement
                     </button>
                   </div>
 
@@ -3620,7 +3624,7 @@ export default function App() {
                       <span className="live-voice-preview-text">
                         🎙️ <em>"{interimTranscript}"</em>
                       </span>
-                      <span style={{ fontSize: '0.85rem', opacity: 0.85 }}>Transcribing ({mimicRole === 'customer' ? 'Customer' : 'Agent'})...</span>
+                      <span style={{ fontSize: '0.85rem', opacity: 0.85 }}>Transcribing...</span>
                     </div>
                   )}
                 </div>
@@ -3630,8 +3634,28 @@ export default function App() {
               <div className="content-card copilot-panel-card flex-col justify-between">
                 <div className="copilot-top">
                   <div className="copilot-header">
-                    <h3>Copilot Real-Time Agent Assist</h3>
-                    <span className="badge-live">Live</span>
+                    <div>
+                      <h3>{copilotAutonomy ? "Copilot Customer Handler" : "Copilot Real-Time Agent Assist"}</h3>
+                      <p className="copilot-mode-sub">
+                        {copilotAutonomy
+                          ? "Autonomous mode — Copilot replies to safe inquiries; agent steps in for claims, cancellations & escalations"
+                          : "Assist mode — Copilot suggests; agent must relay every reply"}
+                      </p>
+                    </div>
+                    <div className="copilot-header-actions">
+                      <label className="autonomy-toggle" title="When on, Copilot handles safe customer replies without waiting for you">
+                        <input
+                          type="checkbox"
+                          checked={copilotAutonomy}
+                          onChange={(e) => setCopilotAutonomy(e.target.checked)}
+                        />
+                        <span className="autonomy-toggle-track" aria-hidden="true"></span>
+                        <span className="autonomy-toggle-label">{copilotAutonomy ? "Auto" : "Assist"}</span>
+                      </label>
+                      <span className={`badge-live ${copilotAutonomy ? "badge-auto" : ""}`}>
+                        {copilotAutonomy ? "Autonomous" : "Live"}
+                      </span>
+                    </div>
                   </div>
 
                   {/* SECTION 1: CONVERSATION UNDERSTANDING */}
@@ -3676,12 +3700,17 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* SECTION 3: AGENT GUIDANCE */}
+                  {/* SECTION 3: AGENT GUIDANCE / COPILOT REPLY */}
                   <div className="copilot-section-card">
-                    <div className="copilot-section-header">3. Agent Guidance</div>
+                    <div className="copilot-section-header">
+                      3. {copilotAutonomy ? "Customer Reply (Copilot)" : "Agent Guidance"}
+                      {copilotIntel.autoHandled && (
+                        <span className="auto-handled-pill">Sent to customer</span>
+                      )}
+                    </div>
                     
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <strong>Suggested Agent Response:</strong>
+                      <strong>{copilotAutonomy ? "Copilot Response:" : "Suggested Agent Response:"}</strong>
                       <button
                         type="button"
                         className={`btn-voice-speak ${speakingTextId === 'suggested-resp' ? 'speaking' : ''}`}
@@ -3704,10 +3733,24 @@ export default function App() {
                       </button>
                     </div>
 
-                    <div className="suggested-response-box">
+                    <div className={`suggested-response-box ${copilotIntel.autoHandled ? "auto-sent" : ""}`}>
                       "{copilotIntel.suggestedResponse}"
                     </div>
 
+                    {!copilotAutonomy && (
+                      <button
+                        type="button"
+                        className="btn-send-suggested"
+                        onClick={() => {
+                          if (!copilotIntel.suggestedResponse) return;
+                          setConversation(prev => [...prev, { sender: "agent", text: copilotIntel.suggestedResponse }]);
+                          handleSpeakText(copilotIntel.suggestedResponse, 'relay-resp');
+                        }}
+                        style={{ marginTop: '10px' }}
+                      >
+                        Send Suggested Reply to Customer
+                      </button>
+                    )}
                     {copilotIntel.suggestedQuestions.length > 0 && (
                       <div style={{ marginTop: '14px' }}>
                         <strong>Suggested Questions to Ask Caller:</strong>

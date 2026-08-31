@@ -1,10 +1,14 @@
 import os
 import sqlite3
 import json
+import logging
 from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Logger setup
+logger = logging.getLogger("intellidesk.database")
 
 # Database Storage Directory
 DB_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,9 +27,15 @@ class SQLDatabaseManager:
     """
     def __init__(self, db_path=SQL_DB_PATH):
         self.db_path = db_path
+        self._conn = None
+        if db_path == ":memory:":
+            self._conn = sqlite3.connect(":memory:")
+            self._conn.row_factory = sqlite3.Row
         self._init_tables()
 
     def get_connection(self):
+        if self.db_path == ":memory:":
+            return self._conn
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         return conn
@@ -52,7 +62,7 @@ class SQLDatabaseManager:
                 decision TEXT,
                 timestamp TEXT,
                 notes TEXT,
-                fraud_prob INTEGER
+                fraud_prob REAL
             );
             """)
 
@@ -191,9 +201,9 @@ class MongoDocumentManager:
                 self.db = self.client.get_database("intellidesk_db")
                 # Test connection ping
                 self.client.admin.command('ping')
-                print("Connected to MongoDB Atlas Cluster successfully!")
+                logger.info("Connected to MongoDB Atlas Cluster successfully.")
             except Exception as e:
-                print(f"⚠️ MongoDB Atlas connection notice: {e}. Falling back to resilient document store.")
+                logger.warning(f"MongoDB Atlas connection failed: {e}. Falling back to local JSON store.")
                 self.client = None
                 self.db = None
 
@@ -205,8 +215,8 @@ class MongoDocumentManager:
             try:
                 results = list(self.db[coll_name].find(query or {}, {"_id": 0}))
                 return results
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"MongoDB find() failed on collection '{coll_name}': {e}. Falling back to local JSON.")
 
         path = self._get_coll_path(coll_name)
         if not os.path.exists(path):
@@ -226,15 +236,16 @@ class MongoDocumentManager:
                 if match:
                     filtered.append(d)
             return filtered
-        except Exception:
+        except (json.JSONDecodeError, IOError) as e:
+            logger.error(f"Local JSON read failed for collection '{coll_name}': {e}")
             return []
 
     def insert_one(self, coll_name: str, doc: Dict[str, Any]) -> Dict[str, Any]:
         if self.db is not None:
             try:
                 self.db[coll_name].insert_one(dict(doc))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"MongoDB insert_one() failed on collection '{coll_name}': {e}")
 
         docs = self.find(coll_name)
         docs.insert(0, doc)
@@ -247,8 +258,8 @@ class MongoDocumentManager:
         if self.db is not None:
             try:
                 self.db[coll_name].update_one({match_key: match_val}, {"$set": update_fields})
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"MongoDB update_one() failed on collection '{coll_name}': {e}")
 
         docs = self.find(coll_name)
         updated = False

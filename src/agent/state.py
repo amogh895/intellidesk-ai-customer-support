@@ -14,3 +14,4 @@ class AgentState(TypedDict):
     is_approved: Optional[bool]
     pending_action: Optional[Dict[str, Any]]  # Stores info on the action that needs human approval
     history: Optional[List[Dict[str, str]]]
+    autonomy_enabled: Optional[bool]  # When True, safe draft_reply skips HITL gate

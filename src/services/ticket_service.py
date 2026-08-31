@@ -8,9 +8,10 @@ class TicketService:
         self.drafts: Dict[str, Dict[str, Any]] = {}
         self.escalations: List[Dict[str, Any]] = []
 
-    def create_draft(self, customer_id: str, subject: str, content: str) -> Dict[str, Any]:
+    def create_draft(self, customer_id: str, subject: str, content: str, auto_send: bool = False) -> Dict[str, Any]:
         """
-        Creates or updates a response draft for a customer.
+        Creates a response draft for a customer.
+        When auto_send=True (Copilot autonomy), marks it Approved & Sent immediately.
         """
         draft_id = f"DFT-{len(self.drafts) + 101}"
         draft_entry = {
@@ -18,7 +19,7 @@ class TicketService:
             "customer_id": customer_id,
             "subject": subject,
             "content": content,
-            "status": "Pending Approval"
+            "status": "Approved & Sent" if auto_send else "Pending Approval"
         }
         self.drafts[draft_id] = draft_entry
         return draft_entry

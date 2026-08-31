@@ -12,6 +12,7 @@ from src.agent.tools import (
     escalate_to_supervisor
 )
 from src.llm.gemini_client import GeminiClient
+from src.config.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,11 @@ def get_intent_classification(query: str, gemini: GeminiClient) -> IntentRouter:
         system_instruction=system_prompt
     )
 
+def _autonomy_on(state: AgentState) -> bool:
+    if state.get("autonomy_enabled") is not None:
+        return bool(state.get("autonomy_enabled"))
+    return bool(settings.COPILOT_AUTONOMY)
+
 # Node 1: Classify Intent
 def classify_intent_node(state: AgentState) -> Dict[str, Any]:
     gemini = GeminiClient()
@@ -49,7 +55,7 @@ def classify_intent_node(state: AgentState) -> Dict[str, Any]:
     
     return {
         "intent": classification.intent,
-        "customer_info": {"id": classification.customer_id} if classification.customer_id else None,
+        "customer_info": {"id": classification.customer_id} if classification.customer_id else state.get("customer_info"),
         "pending_action": {
             "intent": classification.intent,
             "customer_id": classification.customer_id,
@@ -147,13 +153,21 @@ def lookup_crm_node(state: AgentState) -> Dict[str, Any]:
         "response": details_str
     }
 
-# Node 4: Prepare Transaction Action (Transitions to interrupt state)
+# Node 4: Prepare Transaction Action (Transitions to interrupt state OR auto-execute)
 def prepare_action_node(state: AgentState) -> Dict[str, Any]:
     pending = state.get("pending_action") or {}
     intent = state.get("intent")
+    autonomy = _autonomy_on(state)
+
+    # Autonomy: informational outbound drafts auto-approve. Escalations always need a human.
+    auto_approve = autonomy and intent == "draft_reply"
     
-    # We populate the pending action state so the agent UI knows what to approve.
-    if intent == "draft_reply":
+    if intent == "draft_reply" and auto_approve:
+        response = (
+            f"**Autonomous Copilot**: Draft reply for customer "
+            f"`{pending.get('customer_id')}` will be sent without human approval."
+        )
+    elif intent == "draft_reply":
         response = (
             f"**Action Required**: A draft email response is pending approval for customer "
             f"`{pending.get('customer_id')}`. Please verify and approve."
@@ -168,10 +182,10 @@ def prepare_action_node(state: AgentState) -> Dict[str, Any]:
         
     return {
         "response": response,
-        "is_approved": False
+        "is_approved": auto_approve
     }
 
-# Node 5: Execute Approved Transaction Action (HITL approved)
+# Node 5: Execute Approved Transaction Action (HITL approved or auto-approved)
 def execute_action_node(state: AgentState) -> Dict[str, Any]:
     pending = state.get("pending_action") or {}
     intent = state.get("intent")
@@ -181,17 +195,19 @@ def execute_action_node(state: AgentState) -> Dict[str, Any]:
 
     action_result = {}
     if intent == "draft_reply":
-        # Draft creation
+        # Draft creation — auto-send when autonomy prepared the approval
         action_result = draft_customer_response(
             customer_id=pending.get("customer_id") or "UNKNOWN",
             subject=pending.get("subject") or "Support Follow-up",
-            content=pending.get("details") or ""
+            content=pending.get("details") or "",
+            auto_send=_autonomy_on(state)
         )
+        status_note = action_result['status']
         response = (
-            f"### Action Executed: Outbound Email Draft Created\n"
+            f"### Action Executed: Outbound Email {'Sent' if 'Sent' in status_note else 'Draft Created'}\n"
             f"- **Draft ID**: {action_result['draft_id']}\n"
             f"- **Customer ID**: {action_result['customer_id']}\n"
-            f"- **Status**: {action_result['status']}\n\n"
+            f"- **Status**: {status_note}\n\n"
             f"**Draft Body**:\n```\n{action_result['content']}\n```"
         )
     elif intent == "escalate":
@@ -216,7 +232,7 @@ def execute_action_node(state: AgentState) -> Dict[str, Any]:
         "pending_action": None
     }
 
-# Routing Function
+# Routing Function after intent classification
 def router_edge(state: AgentState) -> str:
     intent = state["intent"]
     if intent == "search_knowledge":
@@ -227,6 +243,12 @@ def router_edge(state: AgentState) -> str:
         return "prepare_action"
     return END
 
+# After prepare: auto-approved drafts skip the interrupt gate via auto_execute path
+def after_prepare_edge(state: AgentState) -> str:
+    if state.get("is_approved"):
+        return "auto_execute_action"
+    return "execute_action"
+
 # Build Graph
 builder = StateGraph(AgentState)
 
@@ -236,6 +258,7 @@ builder.add_node("retrieve_kb", retrieve_kb_node)
 builder.add_node("lookup_crm", lookup_crm_node)
 builder.add_node("prepare_action", prepare_action_node)
 builder.add_node("execute_action", execute_action_node)
+builder.add_node("auto_execute_action", execute_action_node)
 
 # Add Edges
 builder.set_entry_point("classify_intent")
@@ -243,11 +266,12 @@ builder.add_conditional_edges("classify_intent", router_edge)
 builder.add_edge("retrieve_kb", END)
 builder.add_edge("lookup_crm", END)
 
-# Action preparation goes to execute action but is interrupted before execution
-builder.add_edge("prepare_action", "execute_action")
+# Auto-approved actions bypass interrupt; escalate / assist-mode drafts still pause
+builder.add_conditional_edges("prepare_action", after_prepare_edge)
 builder.add_edge("execute_action", END)
+builder.add_edge("auto_execute_action", END)
 
-# Setup memory checkpointer and compile graph with interrupt gate
+# Setup memory checkpointer and compile graph with interrupt gate (HITL path only)
 memory = MemorySaver()
 graph = builder.compile(
     checkpointer=memory,

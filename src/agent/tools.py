@@ -19,11 +19,11 @@ def lookup_customer_record(identifier: str):
     """
     return crm_service.lookup_customer(identifier)
 
-def draft_customer_response(customer_id: str, subject: str, content: str):
+def draft_customer_response(customer_id: str, subject: str, content: str, auto_send: bool = False):
     """
-    Generate a reply draft that requires approval.
+    Generate a reply draft. When auto_send=True, Copilot autonomy sends without HITL.
     """
-    return ticket_service.create_draft(customer_id, subject, content)
+    return ticket_service.create_draft(customer_id, subject, content, auto_send=auto_send)
 
 def escalate_to_supervisor(customer_id: str, reason: str, details: str):
     """
