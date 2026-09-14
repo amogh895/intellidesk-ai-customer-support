@@ -2,10 +2,12 @@ from typing import TypedDict, Dict, Any, List, Optional
 
 class AgentState(TypedDict):
     """
-    Main state schema managed by the LangGraph orchestrator.
+    Main state schema managed by the LangGraph multi-agent orchestrator.
     """
     user_query: str
     intent: Optional[str]        # 'search_knowledge' | 'lookup_customer' | 'draft_reply' | 'escalate'
+    active_agent: Optional[str]  # 'supervisor' | 'policy_rag' | 'crm_account' | 'claims_hitl'
+    agent_logs: Optional[List[Dict[str, Any]]]
     retrieved_context: Optional[str]
     confidence: Optional[float]
     customer_info: Optional[Dict[str, Any]]

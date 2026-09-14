@@ -10,7 +10,7 @@ from src.config.config import settings
 
 def load_documents(data_dir: Path):
     """
-    Load all markdown documents from the data directory and attach metadata.
+    Load all markdown (.md) and PDF (.pdf) documents from the data directory and attach metadata.
     """
     docs = []
     if not data_dir.exists():
@@ -18,17 +18,43 @@ def load_documents(data_dir: Path):
         data_dir.mkdir(parents=True, exist_ok=True)
         return docs
 
+    # Also check if root contains any PDF files to ingest
+    root_dir = data_dir.parent
+    for root_pdf in root_dir.glob("*.pdf"):
+        target_in_data = data_dir / root_pdf.name
+        if not target_in_data.exists():
+            try:
+                shutil.copy(str(root_pdf), str(target_in_data))
+                print(f"Copied root PDF '{root_pdf.name}' into data directory for ingestion.")
+            except Exception as e:
+                print(f"Could not copy root PDF {root_pdf.name}: {e}")
+
+    # Load Markdown (.md) documents
     for path in data_dir.glob("*.md"):
         try:
             loader = TextLoader(str(path), encoding="utf-8")
             loaded = loader.load()
             for d in loaded:
                 d.metadata["source"] = path.name
-                # Extract primary title/section if possible
                 d.metadata["category"] = path.stem.replace("_", " ").title()
             docs.extend(loaded)
         except Exception as e:
             print(f"Error loading {path}: {e}")
+
+    # Load PDF (.pdf) documents
+    for path in data_dir.glob("*.pdf"):
+        try:
+            from langchain_community.document_loaders import PyPDFLoader
+            loader = PyPDFLoader(str(path))
+            loaded = loader.load()
+            for d in loaded:
+                d.metadata["source"] = path.name
+                d.metadata["category"] = path.stem.replace("_", " ").title()
+            docs.extend(loaded)
+            print(f"Loaded PDF document '{path.name}' ({len(loaded)} pages).")
+        except Exception as e:
+            print(f"Error loading PDF {path}: {e}")
+
     return docs
 
 def ingest_data(chunk_size: int = 500, chunk_overlap: int = 100, persist_dir: str = None):

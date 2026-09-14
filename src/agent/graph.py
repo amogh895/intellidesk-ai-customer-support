@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -33,8 +33,9 @@ class IntentRouter(BaseModel):
 
 def get_intent_classification(query: str, gemini: GeminiClient) -> IntentRouter:
     system_prompt = (
-        "You are an routing assistant for NorthBridge Insurance customer support agents. "
-        "Analyze the agent's query and extract the target intent, customer ID, subject, and any relevant details."
+        "You are an Orchestrator / Supervisor Agent for NorthBridge Insurance customer support. "
+        "Analyze the incoming query and determine which specialized sub-agent to invoke: "
+        "Policy RAG Specialist Agent ('search_knowledge'), CRM Account Agent ('lookup_customer'), or Claims Clearance Agent ('draft_reply' / 'escalate')."
     )
     return gemini.generate_structured_output(
         prompt=query,
@@ -47,14 +48,27 @@ def _autonomy_on(state: AgentState) -> bool:
         return bool(state.get("autonomy_enabled"))
     return bool(settings.COPILOT_AUTONOMY)
 
-# Node 1: Classify Intent
-def classify_intent_node(state: AgentState) -> Dict[str, Any]:
+# ═══════════ AGENT 1: SUPERVISOR ORCHESTRATOR AGENT ═══════════
+def supervisor_orchestrator_node(state: AgentState) -> Dict[str, Any]:
+    """
+    Supervisor Agent that evaluates caller speech/query, classifies intent,
+    and assigns control to specialized sub-agents.
+    """
     gemini = GeminiClient()
     query = state["user_query"]
     classification = get_intent_classification(query, gemini)
     
+    logs = list(state.get("agent_logs") or [])
+    logs.append({
+        "agent": "Supervisor Orchestrator Agent",
+        "action": f"Classified intent as '{classification.intent}'",
+        "customer_id": classification.customer_id
+    })
+
     return {
         "intent": classification.intent,
+        "active_agent": "supervisor",
+        "agent_logs": logs,
         "customer_info": {"id": classification.customer_id} if classification.customer_id else state.get("customer_info"),
         "pending_action": {
             "intent": classification.intent,
@@ -64,11 +78,22 @@ def classify_intent_node(state: AgentState) -> Dict[str, Any]:
         } if classification.intent in ["draft_reply", "escalate"] else None
     }
 
-# Node 2: Knowledge Base Retrieval & Answer Generation
-def retrieve_kb_node(state: AgentState) -> Dict[str, Any]:
+# ═══════════ AGENT 2: POLICY RAG SPECIALIST SUB-AGENT ═══════════
+def policy_rag_specialist_node(state: AgentState) -> Dict[str, Any]:
+    """
+    Specialized Sub-Agent responsible for searching ChromaDB vector store
+    (including 2026-2027 Vehicle Insurance Policy Handbook and markdown guidelines)
+    and generating citation-backed compliance responses.
+    """
     gemini = GeminiClient()
     query = state["user_query"]
     query_lower = query.lower()
+    
+    logs = list(state.get("agent_logs") or [])
+    logs.append({
+        "agent": "Policy RAG Specialist Agent",
+        "action": "Executing semantic search on policy documents & handbooks"
+    })
     
     # Special handling for queries about topics not in handbook (e.g., nominee/beneficiary change)
     if "nominee" in query_lower or "beneficiary" in query_lower:
@@ -77,19 +102,20 @@ def retrieve_kb_node(state: AgentState) -> Dict[str, Any]:
             "Please check internal policy-service procedure or escalate to a supervisor if necessary."
         )
         return {
+            "active_agent": "policy_rag",
             "retrieved_context": "",
             "confidence": 0.90,
-            "response": response
+            "response": response,
+            "agent_logs": logs
         }
 
-    # Retrieve top match documents from DB
+    # Retrieve top match documents from vector store
     retrieved = search_knowledge_base(query)
     context = retrieved["context"]
     confidence = retrieved["confidence"]
     sources = retrieved["sources"]
     
     if confidence < 0.51 or not context.strip():
-        # Fallback response for unsupported handbook questions
         response = (
             "The current Policy Handbook does not contain specific documentation for this query. "
             "Please verify internal policy-service procedures or escalate to a supervisor."
@@ -97,7 +123,7 @@ def retrieve_kb_node(state: AgentState) -> Dict[str, Any]:
         context = ""
     else:
         system_prompt = (
-            "You are a helpful and compliance-oriented support assistant for NorthBridge Insurance. "
+            "You are the Policy RAG Specialist Sub-Agent for NorthBridge Insurance. "
             "Your task is to answer the user's query using ONLY the provided document context below.\n\n"
             f"CONTEXT:\n{context}\n\n"
             "INSTRUCTIONS:\n"
@@ -116,32 +142,52 @@ def retrieve_kb_node(state: AgentState) -> Dict[str, Any]:
             response += "\n\n**Sources:**\n" + "\n".join(citation_list)
             
     return {
+        "active_agent": "policy_rag",
         "retrieved_context": context,
         "confidence": confidence,
-        "response": response
+        "response": response,
+        "agent_logs": logs
     }
 
-# Node 3: CRM Profile Search
-def lookup_crm_node(state: AgentState) -> Dict[str, Any]:
+# ═══════════ AGENT 3: CRM & ACCOUNT SPECIALIST SUB-AGENT ═══════════
+def crm_account_specialist_node(state: AgentState) -> Dict[str, Any]:
+    """
+    Specialized Sub-Agent responsible for looking up customer CRM records,
+    policy statuses, active claims, and computing account risk metrics.
+    """
+    logs = list(state.get("agent_logs") or [])
     cust_record = state.get("customer_info") or {}
     cust_id = cust_record.get("id")
     
+    logs.append({
+        "agent": "CRM & Account Specialist Agent",
+        "action": f"Auditing customer record for ID '{cust_id}'"
+    })
+    
     if not cust_id:
-        return {"response": "Please verify customer identity (e.g. CRM-101, CRM-103) to access customer account records."}
+        return {
+            "active_agent": "crm_account",
+            "response": "Please verify customer identity (e.g. CRM-101, CRM-103) to access customer account records.",
+            "agent_logs": logs
+        }
         
     record = lookup_customer_record(cust_id)
     if not record:
-        return {"response": f"No customer record found for ID: {cust_id}."}
+        return {
+            "active_agent": "crm_account",
+            "response": f"No customer record found for ID: {cust_id}.",
+            "agent_logs": logs
+        }
         
     details_str = (
-        f"### Customer CRM Record Found\n"
+        f"### Customer CRM Record Found (Audited by CRM Specialist Agent)\n"
         f"- **Name**: {record['name']}\n"
         f"- **CRM ID**: {record['id']}\n"
         f"- **Policy Number**: {record['policy_number']} ({record['policy_type']} - {record['status']})\n"
         f"- **Premium**: ₹{record['premium']}\n"
         f"- **Coverage details**: {record['coverage_details']}\n"
     )
-    if record["claims"]:
+    if record.get("claims"):
         details_str += "\n**Active Claims**:\n"
         for c in record["claims"]:
             details_str += f"- Claim ID: {c['id']}, Status: {c['status']}, Type: {c['type']}, Amount: ₹{c['amount']}\n"
@@ -149,23 +195,35 @@ def lookup_crm_node(state: AgentState) -> Dict[str, Any]:
         details_str += "\nNo active claims on file."
 
     return {
+        "active_agent": "crm_account",
         "customer_info": record,
-        "response": details_str
+        "response": details_str,
+        "agent_logs": logs
     }
 
-# Node 4: Prepare Transaction Action (Transitions to interrupt state OR auto-execute)
-def prepare_action_node(state: AgentState) -> Dict[str, Any]:
+# ═══════════ AGENT 4: CLAIMS & HITL CLEARANCE SUB-AGENT ═══════════
+def claims_hitl_specialist_node(state: AgentState) -> Dict[str, Any]:
+    """
+    Specialized Sub-Agent responsible for evaluating claim actions,
+    drafting customer emails, managing ticket escalations, and triggering
+    the Human-In-The-Loop (HITL) gate for supervisor clearance.
+    """
     pending = state.get("pending_action") or {}
     intent = state.get("intent")
     autonomy = _autonomy_on(state)
+    logs = list(state.get("agent_logs") or [])
 
-    # Autonomy: informational outbound drafts auto-approve. Escalations always need a human.
     auto_approve = autonomy and intent == "draft_reply"
+    
+    logs.append({
+        "agent": "Claims & HITL Clearance Agent",
+        "action": f"Evaluated action '{intent}'. Auto-approve: {auto_approve}"
+    })
     
     if intent == "draft_reply" and auto_approve:
         response = (
-            f"**Autonomous Copilot**: Draft reply for customer "
-            f"`{pending.get('customer_id')}` will be sent without human approval."
+            f"**Autonomous Claims Copilot**: Draft reply for customer "
+            f"`{pending.get('customer_id')}` auto-approved by Copilot Autonomy."
         )
     elif intent == "draft_reply":
         response = (
@@ -178,24 +236,32 @@ def prepare_action_node(state: AgentState) -> Dict[str, Any]:
             f"`{pending.get('customer_id')}`. Please verify and approve."
         )
     else:
-        response = "Action prepared."
+        response = "Action prepared by Claims Specialist."
         
     return {
+        "active_agent": "claims_hitl",
         "response": response,
-        "is_approved": auto_approve
+        "is_approved": auto_approve,
+        "agent_logs": logs
     }
 
-# Node 5: Execute Approved Transaction Action (HITL approved or auto-approved)
-def execute_action_node(state: AgentState) -> Dict[str, Any]:
+def execute_claims_action_node(state: AgentState) -> Dict[str, Any]:
+    """
+    Executes transaction after HITL gate approval or autonomous clearance.
+    """
     pending = state.get("pending_action") or {}
     intent = state.get("intent")
+    logs = list(state.get("agent_logs") or [])
     
     if not state.get("is_approved"):
-        return {"response": "Action rejected or unauthorized."}
+        return {
+            "active_agent": "claims_hitl",
+            "response": "Action rejected or unauthorized by Claims Clearance Agent.",
+            "agent_logs": logs
+        }
 
     action_result = {}
     if intent == "draft_reply":
-        # Draft creation — auto-send when autonomy prepared the approval
         action_result = draft_customer_response(
             customer_id=pending.get("customer_id") or "UNKNOWN",
             subject=pending.get("subject") or "Support Follow-up",
@@ -204,21 +270,20 @@ def execute_action_node(state: AgentState) -> Dict[str, Any]:
         )
         status_note = action_result['status']
         response = (
-            f"### Action Executed: Outbound Email {'Sent' if 'Sent' in status_note else 'Draft Created'}\n"
+            f"### Action Executed by Claims Specialist Agent: Outbound Email {'Sent' if 'Sent' in status_note else 'Draft Created'}\n"
             f"- **Draft ID**: {action_result['draft_id']}\n"
             f"- **Customer ID**: {action_result['customer_id']}\n"
             f"- **Status**: {status_note}\n\n"
             f"**Draft Body**:\n```\n{action_result['content']}\n```"
         )
     elif intent == "escalate":
-        # Escalate ticket
         action_result = escalate_to_supervisor(
             customer_id=pending.get("customer_id") or "UNKNOWN",
             reason=pending.get("subject") or "Escalation Request",
             details=pending.get("details") or ""
         )
         response = (
-            f"### Action Executed: Ticket Escalated\n"
+            f"### Action Executed by Claims Specialist Agent: Ticket Escalated\n"
             f"- **Ticket ID**: {action_result['ticket_id']}\n"
             f"- **Reason**: {action_result['reason']}\n"
             f"- **Status**: {action_result['status']}"
@@ -226,54 +291,61 @@ def execute_action_node(state: AgentState) -> Dict[str, Any]:
     else:
         response = "No matching action identified."
 
+    logs.append({
+        "agent": "Claims & HITL Clearance Agent",
+        "action": f"Executed action '{intent}' successfully",
+        "result": action_result
+    })
+
     return {
+        "active_agent": "claims_hitl",
         "action_output": action_result,
         "response": response,
-        "pending_action": None
+        "pending_action": None,
+        "agent_logs": logs
     }
 
-# Routing Function after intent classification
-def router_edge(state: AgentState) -> str:
-    intent = state["intent"]
+# ═══════════ MULTI-AGENT GRAPH ROUTING ═══════════
+def multi_agent_router(state: AgentState) -> str:
+    intent = state.get("intent")
     if intent == "search_knowledge":
-        return "retrieve_kb"
+        return "policy_rag_specialist"
     elif intent == "lookup_customer":
-        return "lookup_crm"
+        return "crm_account_specialist"
     elif intent in ["draft_reply", "escalate"]:
-        return "prepare_action"
+        return "claims_hitl_specialist"
     return END
 
-# After prepare: auto-approved drafts skip the interrupt gate via auto_execute path
 def after_prepare_edge(state: AgentState) -> str:
     if state.get("is_approved"):
-        return "auto_execute_action"
-    return "execute_action"
+        return "auto_execute_claims_action"
+    return "execute_claims_action"
 
-# Build Graph
+# Build Multi-Agent StateGraph
 builder = StateGraph(AgentState)
 
-# Add Nodes
-builder.add_node("classify_intent", classify_intent_node)
-builder.add_node("retrieve_kb", retrieve_kb_node)
-builder.add_node("lookup_crm", lookup_crm_node)
-builder.add_node("prepare_action", prepare_action_node)
-builder.add_node("execute_action", execute_action_node)
-builder.add_node("auto_execute_action", execute_action_node)
+# Add Multi-Agent Nodes
+builder.add_node("supervisor_orchestrator", supervisor_orchestrator_node)
+builder.add_node("policy_rag_specialist", policy_rag_specialist_node)
+builder.add_node("crm_account_specialist", crm_account_specialist_node)
+builder.add_node("claims_hitl_specialist", claims_hitl_specialist_node)
+builder.add_node("execute_claims_action", execute_claims_action_node)
+builder.add_node("auto_execute_claims_action", execute_claims_action_node)
 
-# Add Edges
-builder.set_entry_point("classify_intent")
-builder.add_conditional_edges("classify_intent", router_edge)
-builder.add_edge("retrieve_kb", END)
-builder.add_edge("lookup_crm", END)
+# Set Entry Point & Conditional Edges
+builder.set_entry_point("supervisor_orchestrator")
+builder.add_conditional_edges("supervisor_orchestrator", multi_agent_router)
 
-# Auto-approved actions bypass interrupt; escalate / assist-mode drafts still pause
-builder.add_conditional_edges("prepare_action", after_prepare_edge)
-builder.add_edge("execute_action", END)
-builder.add_edge("auto_execute_action", END)
+builder.add_edge("policy_rag_specialist", END)
+builder.add_edge("crm_account_specialist", END)
 
-# Setup memory checkpointer and compile graph with interrupt gate (HITL path only)
+builder.add_conditional_edges("claims_hitl_specialist", after_prepare_edge)
+builder.add_edge("execute_claims_action", END)
+builder.add_edge("auto_execute_claims_action", END)
+
+# Memory Checkpointer & Graph Compilation with Interrupt Gate
 memory = MemorySaver()
 graph = builder.compile(
     checkpointer=memory,
-    interrupt_before=["execute_action"]
+    interrupt_before=["execute_claims_action"]
 )

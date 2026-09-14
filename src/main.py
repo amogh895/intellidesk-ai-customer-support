@@ -184,6 +184,8 @@ async def run_agent_query(req: QueryRequest):
                 "status": "suspended",
                 "pending_action": updated_state.values.get("pending_action"),
                 "response": updated_state.values.get("response"),
+                "active_agent": updated_state.values.get("active_agent"),
+                "agent_logs": updated_state.values.get("agent_logs"),
                 "autonomy": autonomy
             }
             
@@ -194,6 +196,7 @@ async def run_agent_query(req: QueryRequest):
             "thread_id": thread_id,
             "query": req.query,
             "intent": intent,
+            "active_agent": updated_state.values.get("active_agent"),
             "status": "completed",
             "response": response_text,
             "human_approval": "auto" if (autonomy and intent == "draft_reply") else None
@@ -204,6 +207,8 @@ async def run_agent_query(req: QueryRequest):
             "response": response_text,
             "confidence": updated_state.values.get("confidence"),
             "intent": intent,
+            "active_agent": updated_state.values.get("active_agent"),
+            "agent_logs": updated_state.values.get("agent_logs"),
             "autonomy": autonomy
         }
     except Exception as e:

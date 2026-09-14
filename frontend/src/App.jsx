@@ -474,17 +474,19 @@ export default function App() {
   } = useVoice();
   const [activeMicTarget, setActiveMicTarget] = useState(null); // 'studio' | 'caller' | 'search' | null
   const [isCallingScreenMaximized, setIsCallingScreenMaximized] = useState(false);
+  const [focusedCard, setFocusedCard] = useState(null); // null | 'voice' | 'customer' | 'copilot'
 
-  // Keyboard shortcut: ESC to minimize calling screen focus
+  // Keyboard shortcut: ESC to minimize calling screen focus or card focus
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isCallingScreenMaximized) {
-        setIsCallingScreenMaximized(false);
+      if (e.key === 'Escape') {
+        if (isCallingScreenMaximized) setIsCallingScreenMaximized(false);
+        if (focusedCard) setFocusedCard(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isCallingScreenMaximized]);
+  }, [isCallingScreenMaximized, focusedCard]);
 
   // Persistent Session Customer Context
   const [crmInput, setCrmInput] = useState('CRM-103');
@@ -3252,23 +3254,99 @@ export default function App() {
               </div>
             )}
 
-
-
-            {/* ═══════════ 🎙️ DYNAMIC 3-WAY VOICE COMMUNICATION STUDIO ═══════════ */}
-            <div className="voice-studio-container" style={{ marginTop: '24px' }}>
-              <div className="voice-studio-header">
-                <h3>
-                  <span>🎙️ Voice Communication Studio</span>
-                  <span className={`badge-live ${isTalking ? '' : 'inactive'}`} style={{ fontSize: '0.82rem', padding: '4px 12px', backgroundColor: isTalking ? '#22c55e' : '#64748b' }}>
-                    {isTalking ? "● Live Speech Active" : "○ Channel Standby"}
-                  </span>
-                </h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
-                    Active Language: <strong>{copilotLang}</strong>
-                  </span>
+            {/* ─── WORKSPACE CARDS VIEW & FOCUS CONTROL TOOLBAR ─── */}
+            <div className="card-layout-toolbar">
+              <div className="toolbar-left">
+                <span className="toolbar-label">🖥️ Card Focus Controls:</span>
+                <div className="toolbar-btn-group">
+                  <button
+                    type="button"
+                    className={`layout-toolbar-btn ${focusedCard === null ? 'active' : ''}`}
+                    onClick={() => setFocusedCard(null)}
+                    title="View all 3 cards in standard layout"
+                  >
+                    📑 All 3 Cards View
+                  </button>
+                  <button
+                    type="button"
+                    className={`layout-toolbar-btn ${focusedCard === 'voice' ? 'active' : ''}`}
+                    onClick={() => setFocusedCard(prev => prev === 'voice' ? null : 'voice')}
+                    title="Focus on Voice Communication Studio"
+                  >
+                    🎙️ 1. Voice Studio {focusedCard === 'voice' ? '✓ Focused' : ''}
+                  </button>
+                  <button
+                    type="button"
+                    className={`layout-toolbar-btn ${focusedCard === 'customer' ? 'active' : ''}`}
+                    onClick={() => setFocusedCard(prev => prev === 'customer' ? null : 'customer')}
+                    title="Focus on Customer Details & Live Transcript"
+                  >
+                    👤 2. Customer Details {focusedCard === 'customer' ? '✓ Focused' : ''}
+                  </button>
+                  <button
+                    type="button"
+                    className={`layout-toolbar-btn ${focusedCard === 'copilot' ? 'active' : ''}`}
+                    onClick={() => setFocusedCard(prev => prev === 'copilot' ? null : 'copilot')}
+                    title="Focus on Copilot Customer Handler"
+                  >
+                    🤖 3. Copilot Handler {focusedCard === 'copilot' ? '✓ Focused' : ''}
+                  </button>
                 </div>
               </div>
+              {focusedCard && (
+                <button
+                  type="button"
+                  className="restore-all-btn"
+                  onClick={() => setFocusedCard(null)}
+                >
+                  🗗 Restore All Cards (Esc)
+                </button>
+              )}
+            </div>
+
+            {/* ═══════════ CARD 1: 🎙️ DYNAMIC 3-WAY VOICE COMMUNICATION STUDIO ═══════════ */}
+            {focusedCard && focusedCard !== 'voice' ? (
+              <div className="compact-card-strip voice-compact" onClick={() => setFocusedCard('voice')} title="Click to expand Voice Communication Studio">
+                <div className="compact-card-left">
+                  <span className="compact-card-icon">🎙️</span>
+                  <strong className="compact-title">1. Voice Communication Studio</strong>
+                  <span className={`badge-live ${isTalking ? '' : 'inactive'}`} style={{ fontSize: '0.78rem', padding: '2px 8px' }}>
+                    {isTalking ? "● Live Speech Active" : "○ Channel Standby"}
+                  </span>
+                  <span className="compact-meta-chip">
+                    Channel: {activeChannel === 'customer_to_agent' ? '📞 Customer ➔ Agent' : activeChannel === 'agent_to_copilot' ? '🤖 Agent ➔ Copilot' : '🗣️ Agent ➔ Customer'}
+                  </span>
+                  <span className="compact-meta-chip">Lang: {copilotLang}</span>
+                </div>
+                <div className="compact-card-right">
+                  <button type="button" className="card-focus-toggle-btn expand-btn" onClick={(e) => { e.stopPropagation(); setFocusedCard('voice'); }}>
+                    ↗️ Expand / Focus Card
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className={`voice-studio-container ${focusedCard === 'voice' ? 'focused-card-highlight' : ''}`} style={{ marginTop: '18px' }}>
+                <div className="voice-studio-header">
+                  <h3>
+                    <span>🎙️ Voice Communication Studio</span>
+                    <span className={`badge-live ${isTalking ? '' : 'inactive'}`} style={{ fontSize: '0.82rem', padding: '4px 12px', backgroundColor: isTalking ? '#22c55e' : '#64748b' }}>
+                      {isTalking ? "● Live Speech Active" : "○ Channel Standby"}
+                    </span>
+                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                      Active Language: <strong>{copilotLang}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      className={`card-focus-toggle-btn ${focusedCard === 'voice' ? 'active-focus' : ''}`}
+                      onClick={() => setFocusedCard(prev => prev === 'voice' ? null : 'voice')}
+                      title={focusedCard === 'voice' ? "Restore normal view" : "Focus on Voice Studio"}
+                    >
+                      {focusedCard === 'voice' ? '🗗 Compact Card' : '⛶ Full Screen Focus'}
+                    </button>
+                  </div>
+                </div>
 
               {/* 3-Way Audio Channel Switcher */}
               <div className="voice-channel-selector">
@@ -3470,354 +3548,451 @@ export default function App() {
                 </div>
               </div>
             </div>
+            )}
 
-            <div className="grid-2 gap-30" style={{ marginTop: '24px' }}>
-              {/* ─── LEFT COLUMN: CUSTOMER 360 PROFILE & CALL TRANSCRIPT ─── */}
-              <div className="content-card dashboard-card">
-                {crmRecord ? (
-                  <>
-                    <div className="dashboard-header-block">
-                      <div className="avatar-initials-badge">{crmRecord.name.split(" ").map(n => n[0]).join("")}</div>
-                      <div>
-                        <h3>{crmRecord.name}</h3>
-                        <span className={`status-badge ${crmRecord.status.toLowerCase()}`}>{crmRecord.status}</span>
-                      </div>
-                    </div>
+            {/* ═══════════ CARDS 2 & 3: CUSTOMER DETAILS & COPILOT HANDLER ═══════════ */}
+            {focusedCard === 'voice' ? (
+              <div className="grid-2 gap-20" style={{ marginTop: '16px' }}>
+                {/* Card 2 Compact Strip */}
+                <div className="compact-card-strip customer-compact" onClick={() => setFocusedCard('customer')} title="Click to focus on Customer Details & Transcript">
+                  <div className="compact-card-left">
+                    <span className="compact-card-icon">👤</span>
+                    <strong className="compact-title">2. Customer Details & Live Transcript</strong>
+                    {crmRecord && <span className="compact-meta-tag">{crmRecord.name} ({crmRecord.id})</span>}
+                  </div>
+                  <div className="compact-card-right">
+                    <button type="button" className="card-focus-toggle-btn expand-btn" onClick={(e) => { e.stopPropagation(); setFocusedCard('customer'); }}>
+                      ↗️ Focus Card
+                    </button>
+                  </div>
+                </div>
 
-                    <div className="profile-details-grid" style={{ marginTop: '18px' }}>
-                      <div><strong>Policy Number</strong>: <code>{crmRecord.policy_number}</code></div>
-                      <div><strong>Renewal Date</strong>: {crmRecord.renewal_date}</div>
-                      <div><strong>Annual Premium</strong>: ₹{crmRecord.premium}/yr</div>
-                      <div>
-                        <strong>Outstanding Premium</strong>:{" "}
-                        {crmRecord.outstanding_premium > 0 ? (
-                          <span style={{ color: 'var(--danger-color)', fontWeight: 'bold' }}>₹{crmRecord.outstanding_premium.toFixed(2)}</span>
-                        ) : (
-                          <span style={{ color: 'var(--success-color)' }}>₹0.00 (Paid)</span>
-                        )}
-                      </div>
+                {/* Card 3 Compact Strip */}
+                <div className="compact-card-strip copilot-compact" onClick={() => setFocusedCard('copilot')} title="Click to focus on Copilot Handler">
+                  <div className="compact-card-left">
+                    <span className="compact-card-icon">🤖</span>
+                    <strong className="compact-title">3. Copilot Customer Handler</strong>
+                    <span className="compact-meta-chip">Intent: {copilotIntel.intent}</span>
+                  </div>
+                  <div className="compact-card-right">
+                    <button type="button" className="card-focus-toggle-btn expand-btn" onClick={(e) => { e.stopPropagation(); setFocusedCard('copilot'); }}>
+                      ↗️ Focus Card
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginTop: '18px' }}>
+                {focusedCard === 'copilot' && (
+                  /* Compact Card 2 when Copilot is focused */
+                  <div className="compact-card-strip customer-compact" onClick={() => setFocusedCard('customer')} title="Click to focus on Customer Details & Transcript" style={{ marginBottom: '16px' }}>
+                    <div className="compact-card-left">
+                      <span className="compact-card-icon">👤</span>
+                      <strong className="compact-title">2. Customer Name & Details</strong>
+                      {crmRecord ? (
+                        <>
+                          <span className="compact-meta-tag">{crmRecord.name} ({crmRecord.id})</span>
+                          <span className="compact-meta-chip">Policy: {crmRecord.policy_number}</span>
+                          <span className="compact-meta-chip">Risk: {computeRiskTier(crmRecord)}</span>
+                        </>
+                      ) : (
+                        <span className="compact-meta-chip">No Customer Verified</span>
+                      )}
+                      <span className="compact-meta-chip">Transcript: {conversation.length} msgs</span>
                     </div>
-
-                    <div className="coverage-specs-box" style={{ marginTop: '18px' }}>
-                      <strong>Coverage Specs:</strong>
-                      <p>{crmRecord.coverage_details}</p>
+                    <div className="compact-card-right">
+                      <button type="button" className="card-focus-toggle-btn expand-btn" onClick={(e) => { e.stopPropagation(); setFocusedCard('customer'); }}>
+                        ↗️ Expand / Focus Card
+                      </button>
                     </div>
-
-                    <div style={{ marginTop: '18px', padding: '12px 16px', backgroundColor: computeRiskTier(crmRecord) === 'High' ? 'rgba(239,68,68,0.08)' : computeRiskTier(crmRecord) === 'Medium' ? 'rgba(245,158,11,0.08)' : 'rgba(22,163,74,0.08)', borderLeft: `4px solid ${computeRiskTier(crmRecord) === 'High' ? 'var(--danger-color)' : computeRiskTier(crmRecord) === 'Medium' ? 'var(--warning-color)' : 'var(--success-color)'}`, borderRadius: '8px', fontSize: '1.02rem' }}>
-                      <strong>Calculated Risk Tier: {computeRiskTier(crmRecord)}</strong>
-                    </div>
-
-                    <div className="lang-selector-group" style={{ marginTop: '18px' }}>
-                      <label><strong>Preferred Language:</strong></label>
-                      <select value={copilotLang} onChange={(e) => setCopilotLang(e.target.value)}>
-                        <option value="English">English</option>
-                        <option value="Spanish">Spanish (Español)</option>
-                        <option value="French">French (Français)</option>
-                      </select>
-                    </div>
-                  </>
-                ) : (
-                  <div className="verify-empty-card">
-                    <p style={{ color: 'var(--text-secondary)' }}>No active customer context verified. Enter a CRM ID above to verify account details.</p>
                   </div>
                 )}
 
-                {/* Call Transcript Simulator */}
-                <div className="claims-summary-section" style={{ marginTop: '24px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <h4>Live Conversation Transcript</h4>
-                    <span style={{ fontSize: '0.92rem', color: 'var(--text-secondary)' }}>
-                      🎤 Voice Active ({copilotLang})
-                    </span>
-                  </div>
-
-                  {voiceError && (
-                    <div className="voice-warning-toast">
-                      <span>⚠️ {voiceError}</span>
-                      <button 
-                        type="button" 
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }} 
-                        onClick={() => setVoiceError(null)}
-                      >
-                        ✕
+                {focusedCard === 'customer' && (
+                  /* Compact Card 3 when Customer is focused */
+                  <div className="compact-card-strip copilot-compact" onClick={() => setFocusedCard('copilot')} title="Click to focus on Copilot Customer Handler" style={{ marginBottom: '16px' }}>
+                    <div className="compact-card-left">
+                      <span className="compact-card-icon">🤖</span>
+                      <strong className="compact-title">3. Copilot Customer Handler</strong>
+                      <span className={`badge-live ${copilotAutonomy ? "badge-auto" : ""}`} style={{ fontSize: '0.78rem', padding: '2px 8px' }}>
+                        {copilotAutonomy ? "Autonomous" : "Assist"}
+                      </span>
+                      <span className="compact-meta-chip">Intent: {copilotIntel.intent}</span>
+                      <span className="compact-meta-chip">Sentiment: {copilotIntel.sentiment}</span>
+                    </div>
+                    <div className="compact-card-right">
+                      <button type="button" className="card-focus-toggle-btn expand-btn" onClick={(e) => { e.stopPropagation(); setFocusedCard('copilot'); }}>
+                        ↗️ Expand / Focus Card
                       </button>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  <div className="scrolling-transcript-panel" style={{ maxHeight: '240px', margin: '12px 0' }}>
-                    {conversation.length === 0 ? (
-                      <div className="empty-chat" style={{ height: '90px' }}>
-                        <p>Simulate caller speech below using your <strong>Microphone (🎤)</strong>, keyboard, or the <strong>Quick Scenarios</strong> above.</p>
-                      </div>
+                <div className={focusedCard ? "single-col" : "grid-2 gap-30"}>
+                  {/* ─── CARD 2: CUSTOMER 360 PROFILE & CALL TRANSCRIPT ─── */}
+                  <div className={`content-card dashboard-card ${focusedCard === 'customer' ? 'focused-card-highlight' : ''}`}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
+                      <h3 style={{ margin: 0, fontSize: '1.1rem' }}>👤 Customer Profile & Details</h3>
+                      <button
+                        type="button"
+                        className={`card-focus-toggle-btn ${focusedCard === 'customer' ? 'active-focus' : ''}`}
+                        onClick={() => setFocusedCard(prev => prev === 'customer' ? null : 'customer')}
+                        title={focusedCard === 'customer' ? "Restore normal view" : "Focus on Customer Details"}
+                      >
+                        {focusedCard === 'customer' ? '🗗 Compact Card' : '⛶ Full Screen Focus'}
+                      </button>
+                    </div>
+
+                    {crmRecord ? (
+                      <>
+                        <div className="dashboard-header-block">
+                          <div className="avatar-initials-badge">{crmRecord.name.split(" ").map(n => n[0]).join("")}</div>
+                          <div>
+                            <h3>{crmRecord.name}</h3>
+                            <span className={`status-badge ${crmRecord.status.toLowerCase()}`}>{crmRecord.status}</span>
+                          </div>
+                        </div>
+
+                        <div className="profile-details-grid" style={{ marginTop: '18px' }}>
+                          <div><strong>Policy Number</strong>: <code>{crmRecord.policy_number}</code></div>
+                          <div><strong>Renewal Date</strong>: {crmRecord.renewal_date}</div>
+                          <div><strong>Annual Premium</strong>: ₹{crmRecord.premium}/yr</div>
+                          <div>
+                            <strong>Outstanding Premium</strong>:{" "}
+                            {crmRecord.outstanding_premium > 0 ? (
+                              <span style={{ color: 'var(--danger-color)', fontWeight: 'bold' }}>₹{crmRecord.outstanding_premium.toFixed(2)}</span>
+                            ) : (
+                              <span style={{ color: 'var(--success-color)' }}>₹0.00 (Paid)</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="coverage-specs-box" style={{ marginTop: '18px' }}>
+                          <strong>Coverage Specs:</strong>
+                          <p>{crmRecord.coverage_details}</p>
+                        </div>
+
+                        <div style={{ marginTop: '18px', padding: '12px 16px', backgroundColor: computeRiskTier(crmRecord) === 'High' ? 'rgba(239,68,68,0.08)' : computeRiskTier(crmRecord) === 'Medium' ? 'rgba(245,158,11,0.08)' : 'rgba(22,163,74,0.08)', borderLeft: `4px solid ${computeRiskTier(crmRecord) === 'High' ? 'var(--danger-color)' : computeRiskTier(crmRecord) === 'Medium' ? 'var(--warning-color)' : 'var(--success-color)'}`, borderRadius: '8px', fontSize: '1.02rem' }}>
+                          <strong>Calculated Risk Tier: {computeRiskTier(crmRecord)}</strong>
+                        </div>
+
+                        <div className="lang-selector-group" style={{ marginTop: '18px' }}>
+                          <label><strong>Preferred Language:</strong></label>
+                          <select value={copilotLang} onChange={(e) => setCopilotLang(e.target.value)}>
+                            <option value="English">English</option>
+                            <option value="Spanish">Spanish (Español)</option>
+                            <option value="French">French (Français)</option>
+                          </select>
+                        </div>
+                      </>
                     ) : (
-                      conversation.map((msg, idx) => (
-                        <div key={idx} className={`transcript-bubble ${msg.sender}`}>
-                          <button
-                            type="button"
-                            className="transcript-audio-btn"
-                            onClick={() => handleSpeakText(msg.text, `msg-${idx}`)}
-                            title={speakingTextId === `msg-${idx}` ? "Stop playback" : "Listen to audio"}
+                      <div className="verify-empty-card">
+                        <p style={{ color: 'var(--text-secondary)' }}>No active customer context verified. Enter a CRM ID above to verify account details.</p>
+                      </div>
+                    )}
+
+                    {/* Call Transcript Simulator */}
+                    <div className="claims-summary-section" style={{ marginTop: '24px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <h4>Live Conversation Transcript</h4>
+                        <span style={{ fontSize: '0.92rem', color: 'var(--text-secondary)' }}>
+                          🎤 Voice Active ({copilotLang})
+                        </span>
+                      </div>
+
+                      {voiceError && (
+                        <div className="voice-warning-toast">
+                          <span>⚠️ {voiceError}</span>
+                          <button 
+                            type="button" 
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }} 
+                            onClick={() => setVoiceError(null)}
                           >
-                            {speakingTextId === `msg-${idx}` ? "⏹️ Playing..." : "🔊 Play"}
+                            ✕
                           </button>
-                          <span className="speaker-name">
-                            {msg.sender === 'system' ? 'CRM Note'
-                              : msg.sender === 'customer' ? (crmRecord ? `Caller (${crmRecord.name})` : 'Caller')
-                              : msg.sender === 'agent' ? 'Agent (You)'
-                              : msg.autoDelivered ? 'Copilot → Customer (Auto)'
-                              : 'Copilot Insight'}
-                          </span>
-                          <p>{msg.text}</p>
-                          {msg.autoDelivered && (
-                            <span className="auto-delivered-chip">Autonomous reply</span>
+                        </div>
+                      )}
+
+                      <div className={`scrolling-transcript-panel ${focusedCard === 'customer' ? 'expanded-panel' : ''}`} style={{ maxHeight: focusedCard === 'customer' ? '480px' : '240px', margin: '12px 0' }}>
+                        {conversation.length === 0 ? (
+                          <div className="empty-chat" style={{ height: '90px' }}>
+                            <p>Record caller speech using the <strong>Microphone (🎤 Speak Query)</strong> button below. Voice-only input is active.</p>
+                          </div>
+                        ) : (
+                          conversation.map((msg, idx) => (
+                            <div key={idx} className={`transcript-bubble ${msg.sender}`}>
+                              <button
+                                type="button"
+                                className="transcript-audio-btn"
+                                onClick={() => handleSpeakText(msg.text, `msg-${idx}`)}
+                                title={speakingTextId === `msg-${idx}` ? "Stop playback" : "Listen to audio"}
+                              >
+                                {speakingTextId === `msg-${idx}` ? "⏹️ Playing..." : "🔊 Play"}
+                              </button>
+                              <span className="speaker-name">
+                                {msg.sender === 'system' ? 'CRM Note'
+                                  : msg.sender === 'customer' ? (crmRecord ? `Caller (${crmRecord.name})` : 'Caller')
+                                  : msg.sender === 'agent' ? 'Agent (You)'
+                                  : msg.autoDelivered ? 'Copilot → Customer (Auto)'
+                                  : 'Copilot Insight'}
+                              </span>
+                              <p>{msg.text}</p>
+                              {msg.autoDelivered && (
+                                <span className="auto-delivered-chip">Autonomous reply</span>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {/* 🎙️ STRICT VOICE-ONLY INTAKE (Text Writing Removed as requested) */}
+                      <div className="voice-only-intake-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', background: 'rgba(37, 99, 235, 0.06)', padding: '12px 18px', borderRadius: '12px', border: '1px solid rgba(37, 99, 235, 0.22)', marginTop: '12px' }}>
+                        <div style={{ flex: 1, fontSize: '0.96rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '1.3rem' }}>🎙️</span>
+                          {isListening && activeMicTarget === 'caller' ? (
+                            <span style={{ color: '#dc2626', fontWeight: 600 }}>
+                              Listening in {copilotLang}... Speak your query now! {interimTranscript ? `"${interimTranscript}"` : ''}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-secondary)' }}>
+                              <strong>Voice-Only Query Mode</strong> — Click 🎤 Speak to record customer statement via microphone.
+                            </span>
                           )}
                         </div>
-                      ))
-                    )}
+
+                        <button
+                          type="button"
+                          className={`mic-btn ${isListening && activeMicTarget === 'caller' ? 'mic-btn-recording' : ''}`}
+                          onClick={handleToggleCallerMic}
+                          style={{ padding: '10px 22px', fontSize: '1rem', flexShrink: 0, height: '44px' }}
+                          title={isListening && activeMicTarget === 'caller' ? "Stop voice listening" : "Click to speak customer query with microphone"}
+                        >
+                          {isListening && activeMicTarget === 'caller' ? (
+                            <>
+                              <span>🔴 Recording Speech</span>
+                              <div className="audio-wave-container">
+                                <span className="audio-wave-bar"></span>
+                                <span className="audio-wave-bar"></span>
+                                <span className="audio-wave-bar"></span>
+                                <span className="audio-wave-bar"></span>
+                              </div>
+                            </>
+                          ) : (
+                            <span>🎤 Speak Query</span>
+                          )}
+                        </button>
+                      </div>
+
+                      {isListening && activeMicTarget === 'caller' && interimTranscript && (
+                        <div className="live-voice-preview" style={{ marginTop: '8px' }}>
+                          <span className="live-voice-preview-text">
+                            🎙️ <em>"{interimTranscript}"</em>
+                          </span>
+                          <span style={{ fontSize: '0.85rem', opacity: 0.85 }}>Transcribing live speech...</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="speech-input-bar" style={{ gap: '8px' }}>
-                    <input
-                      type="text"
-                      value={liveStatementInput}
-                      onChange={(e) => setLiveStatementInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSendLiveSpeechOrText()}
-                      placeholder={
-                        isListening && activeMicTarget === 'caller'
-                          ? `🎙️ Listening in ${copilotLang}... Speak customer statement!`
-                          : "👤 Speak or type customer statement (e.g. 'I had an auto accident')..."
-                      }
-                    />
+                  {/* ─── CARD 3: ENTERPRISE COPILOT ASSIST (4 SECTIONS) ─── */}
+                  <div className={`content-card copilot-panel-card flex-col justify-between ${focusedCard === 'copilot' ? 'focused-card-highlight' : ''}`}>
+                    <div className="copilot-top">
+                      <div className="copilot-header">
+                        <div>
+                          <h3>{copilotAutonomy ? "Copilot Customer Handler" : "Copilot Real-Time Agent Assist"}</h3>
+                          <p className="copilot-mode-sub">
+                            {copilotAutonomy
+                              ? "Autonomous mode — Copilot replies to safe inquiries; agent steps in for claims, cancellations & escalations"
+                              : "Assist mode — Copilot suggests; agent must relay every reply"}
+                          </p>
+                        </div>
+                        <div className="copilot-header-actions">
+                          <button
+                            type="button"
+                            className={`card-focus-toggle-btn ${focusedCard === 'copilot' ? 'active-focus' : ''}`}
+                            onClick={() => setFocusedCard(prev => prev === 'copilot' ? null : 'copilot')}
+                            title={focusedCard === 'copilot' ? "Restore normal view" : "Focus on Copilot Handler"}
+                            style={{ marginRight: '8px' }}
+                          >
+                            {focusedCard === 'copilot' ? '🗗 Compact Card' : '⛶ Full Screen Focus'}
+                          </button>
+                          <label className="autonomy-toggle" title="When on, Copilot handles safe customer replies without waiting for you">
+                            <input
+                              type="checkbox"
+                              checked={copilotAutonomy}
+                              onChange={(e) => setCopilotAutonomy(e.target.checked)}
+                            />
+                            <span className="autonomy-toggle-track" aria-hidden="true"></span>
+                            <span className="autonomy-toggle-label">{copilotAutonomy ? "Auto" : "Assist"}</span>
+                          </label>
+                          <span className={`badge-live ${copilotAutonomy ? "badge-auto" : ""}`}>
+                            {copilotAutonomy ? "Autonomous" : "Live"}
+                          </span>
+                        </div>
+                      </div>
 
-                    <button
-                      type="button"
-                      className={`mic-btn ${isListening && activeMicTarget === 'caller' ? 'mic-btn-recording' : ''}`}
-                      onClick={handleToggleCallerMic}
-                      title={isListening && activeMicTarget === 'caller' ? "Stop voice listening" : "Click to speak with microphone"}
-                    >
-                      {isListening && activeMicTarget === 'caller' ? (
-                        <>
-                          <span>🔴 Live</span>
-                          <div className="audio-wave-container">
-                            <span className="audio-wave-bar"></span>
-                            <span className="audio-wave-bar"></span>
-                            <span className="audio-wave-bar"></span>
-                            <span className="audio-wave-bar"></span>
+                      {/* SECTION 1: CONVERSATION UNDERSTANDING */}
+                      <div className="copilot-section-card">
+                        <div className="copilot-section-header">1. Conversation Understanding</div>
+                        <div className="copilot-grid-2">
+                          <div className="copilot-metric-pill">
+                            <strong>Customer Intent</strong>
+                            <span>{copilotIntel.intent}</span>
                           </div>
-                        </>
-                      ) : (
-                        <span>🎤 Speak</span>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      className="submit-btn"
-                      onClick={() => handleSendLiveSpeechOrText()}
-                    >
-                      Send Statement
-                    </button>
-                  </div>
-
-                  {isListening && activeMicTarget === 'caller' && interimTranscript && (
-                    <div className="live-voice-preview">
-                      <span className="live-voice-preview-text">
-                        🎙️ <em>"{interimTranscript}"</em>
-                      </span>
-                      <span style={{ fontSize: '0.85rem', opacity: 0.85 }}>Transcribing...</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ─── RIGHT COLUMN: ENTERPRISE COPILOT ASSIST (4 SECTIONS) ─── */}
-              <div className="content-card copilot-panel-card flex-col justify-between">
-                <div className="copilot-top">
-                  <div className="copilot-header">
-                    <div>
-                      <h3>{copilotAutonomy ? "Copilot Customer Handler" : "Copilot Real-Time Agent Assist"}</h3>
-                      <p className="copilot-mode-sub">
-                        {copilotAutonomy
-                          ? "Autonomous mode — Copilot replies to safe inquiries; agent steps in for claims, cancellations & escalations"
-                          : "Assist mode — Copilot suggests; agent must relay every reply"}
-                      </p>
-                    </div>
-                    <div className="copilot-header-actions">
-                      <label className="autonomy-toggle" title="When on, Copilot handles safe customer replies without waiting for you">
-                        <input
-                          type="checkbox"
-                          checked={copilotAutonomy}
-                          onChange={(e) => setCopilotAutonomy(e.target.checked)}
-                        />
-                        <span className="autonomy-toggle-track" aria-hidden="true"></span>
-                        <span className="autonomy-toggle-label">{copilotAutonomy ? "Auto" : "Assist"}</span>
-                      </label>
-                      <span className={`badge-live ${copilotAutonomy ? "badge-auto" : ""}`}>
-                        {copilotAutonomy ? "Autonomous" : "Live"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* SECTION 1: CONVERSATION UNDERSTANDING */}
-                  <div className="copilot-section-card">
-                    <div className="copilot-section-header">1. Conversation Understanding</div>
-                    <div className="copilot-grid-2">
-                      <div className="copilot-metric-pill">
-                        <strong>Customer Intent</strong>
-                        <span>{copilotIntel.intent}</span>
+                          <div className="copilot-metric-pill">
+                            <strong>Sentiment</strong>
+                            <span style={{ color: copilotIntel.sentiment === 'Anxious' ? 'var(--warning-color)' : copilotIntel.sentiment === 'Frustrated' ? 'var(--danger-color)' : 'var(--success-color)' }}>
+                              {copilotIntel.sentiment}
+                            </span>
+                          </div>
+                          <div className="copilot-metric-pill">
+                            <strong>Urgency</strong>
+                            <span style={{ color: copilotIntel.urgency === 'High' ? 'var(--danger-color)' : 'var(--text-primary)' }}>
+                              {copilotIntel.urgency}
+                            </span>
+                          </div>
+                          <div className="copilot-metric-pill">
+                            <strong>Conversation Stage</strong>
+                            <span>{copilotIntel.stage}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="copilot-metric-pill">
-                        <strong>Sentiment</strong>
-                        <span style={{ color: copilotIntel.sentiment === 'Anxious' ? 'var(--warning-color)' : copilotIntel.sentiment === 'Frustrated' ? 'var(--danger-color)' : 'var(--success-color)' }}>
-                          {copilotIntel.sentiment}
-                        </span>
-                      </div>
-                      <div className="copilot-metric-pill">
-                        <strong>Urgency</strong>
-                        <span style={{ color: copilotIntel.urgency === 'High' ? 'var(--danger-color)' : 'var(--text-primary)' }}>
-                          {copilotIntel.urgency}
-                        </span>
-                      </div>
-                      <div className="copilot-metric-pill">
-                        <strong>Conversation Stage</strong>
-                        <span>{copilotIntel.stage}</span>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* SECTION 2: CUSTOMER CONTEXT */}
-                  <div className="copilot-section-card">
-                    <div className="copilot-section-header">2. Customer Context</div>
-                    {crmRecord ? (
-                      <div className="copilot-grid-2">
-                        <div><strong>Customer</strong>: {crmRecord.name} (<code>{crmRecord.id}</code>)</div>
-                        <div><strong>Policy</strong>: <code>{crmRecord.policy_number}</code> ({crmRecord.policy_type})</div>
-                        <div><strong>Premium</strong>: ₹{crmRecord.premium}/yr</div>
-                        <div><strong>Outstanding</strong>: {crmRecord.outstanding_premium > 0 ? `₹${crmRecord.outstanding_premium.toFixed(2)}` : '₹0.00 (Paid)'}</div>
-                      </div>
-                    ) : (
-                      <p style={{ fontSize: '1.02rem', color: 'var(--text-secondary)' }}>No customer verified yet.</p>
-                    )}
-                  </div>
-
-                  {/* SECTION 3: AGENT GUIDANCE / COPILOT REPLY */}
-                  <div className="copilot-section-card">
-                    <div className="copilot-section-header">
-                      3. {copilotAutonomy ? "Customer Reply (Copilot)" : "Agent Guidance"}
-                      {copilotIntel.autoHandled && (
-                        <span className="auto-handled-pill">Sent to customer</span>
-                      )}
-                    </div>
-                    
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <strong>{copilotAutonomy ? "Copilot Response:" : "Suggested Agent Response:"}</strong>
-                      <button
-                        type="button"
-                        className={`btn-voice-speak ${speakingTextId === 'suggested-resp' ? 'speaking' : ''}`}
-                        onClick={() => handleSpeakText(copilotIntel.suggestedResponse, 'suggested-resp')}
-                        title="Play suggested response with natural voice"
-                      >
-                        {speakingTextId === 'suggested-resp' ? (
-                          <>
-                            <span>⏹️ Stop Voice</span>
-                            <div className="audio-wave-container">
-                              <span className="audio-wave-bar"></span>
-                              <span className="audio-wave-bar"></span>
-                              <span className="audio-wave-bar"></span>
-                              <span className="audio-wave-bar"></span>
-                            </div>
-                          </>
+                      {/* SECTION 2: CUSTOMER CONTEXT */}
+                      <div className="copilot-section-card">
+                        <div className="copilot-section-header">2. Customer Context</div>
+                        {crmRecord ? (
+                          <div className="copilot-grid-2">
+                            <div><strong>Customer</strong>: {crmRecord.name} (<code>{crmRecord.id}</code>)</div>
+                            <div><strong>Policy</strong>: <code>{crmRecord.policy_number}</code> ({crmRecord.policy_type})</div>
+                            <div><strong>Premium</strong>: ₹{crmRecord.premium}/yr</div>
+                            <div><strong>Outstanding</strong>: {crmRecord.outstanding_premium > 0 ? `₹${crmRecord.outstanding_premium.toFixed(2)}` : '₹0.00 (Paid)'}</div>
+                          </div>
                         ) : (
-                          <>🔊 Read Aloud</>
+                          <p style={{ fontSize: '1.02rem', color: 'var(--text-secondary)' }}>No customer verified yet.</p>
                         )}
-                      </button>
-                    </div>
+                      </div>
 
-                    <div className={`suggested-response-box ${copilotIntel.autoHandled ? "auto-sent" : ""}`}>
-                      "{copilotIntel.suggestedResponse}"
-                    </div>
-
-                    {!copilotAutonomy && (
-                      <button
-                        type="button"
-                        className="btn-send-suggested"
-                        onClick={() => {
-                          if (!copilotIntel.suggestedResponse) return;
-                          setConversation(prev => [...prev, { sender: "agent", text: copilotIntel.suggestedResponse }]);
-                          handleSpeakText(copilotIntel.suggestedResponse, 'relay-resp');
-                        }}
-                        style={{ marginTop: '10px' }}
-                      >
-                        Send Suggested Reply to Customer
-                      </button>
-                    )}
-                    {copilotIntel.suggestedQuestions.length > 0 && (
-                      <div style={{ marginTop: '14px' }}>
-                        <strong>Suggested Questions to Ask Caller:</strong>
-                        <div className="suggested-q-list">
-                          {copilotIntel.suggestedQuestions.map((q, qidx) => (
-                            <button key={qidx} className="suggested-q-btn" onClick={() => handleAddStatement(q)}>
-                              • {q}
-                            </button>
-                          ))}
+                      {/* SECTION 3: AGENT GUIDANCE / COPILOT REPLY */}
+                      <div className="copilot-section-card">
+                        <div className="copilot-section-header">
+                          3. {copilotAutonomy ? "Customer Reply (Copilot)" : "Agent Guidance"}
+                          {copilotIntel.autoHandled && (
+                            <span className="auto-handled-pill">Sent to customer</span>
+                          )}
                         </div>
-                      </div>
-                    )}
-
-                    {copilotIntel.nextAction && (
-                      <div className="next-best-action-banner">
-                        <strong>Next Best Action:</strong> {copilotIntel.nextAction}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* SECTION 4: POLICY KNOWLEDGE & RULES */}
-                  <div className="copilot-section-card">
-                    <div className="copilot-section-header">4. Policy Knowledge & Rules</div>
-                    
-                    {copilotIntel.policyRule && (
-                      <div className="policy-clause-box">
-                        <strong>Policy Knowledge:</strong> {copilotIntel.policyRule}
-                      </div>
-                    )}
-
-                    {copilotIntel.reqDocs.length > 0 && (
-                      <div style={{ marginTop: '14px' }}>
-                        <strong>Required Documents:</strong>
-                        <div className="req-docs-group" style={{ marginTop: '8px' }}>
-                          {copilotIntel.reqDocs.map((doc, i) => <span key={i} className="doc-pill">{doc}</span>)}
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                          <strong>{copilotAutonomy ? "Copilot Response:" : "Suggested Agent Response:"}</strong>
+                          <button
+                            type="button"
+                            className={`btn-voice-speak ${speakingTextId === 'suggested-resp' ? 'speaking' : ''}`}
+                            onClick={() => handleSpeakText(copilotIntel.suggestedResponse, 'suggested-resp')}
+                            title="Play suggested response with natural voice"
+                          >
+                            {speakingTextId === 'suggested-resp' ? (
+                              <>
+                                <span>⏹️ Stop Voice</span>
+                                <div className="audio-wave-container">
+                                  <span className="audio-wave-bar"></span>
+                                  <span className="audio-wave-bar"></span>
+                                  <span className="audio-wave-bar"></span>
+                                  <span className="audio-wave-bar"></span>
+                                </div>
+                              </>
+                            ) : (
+                              <>🔊 Read Aloud</>
+                            )}
+                          </button>
                         </div>
-                      </div>
-                    )}
 
-                    {copilotIntel.alerts.length > 0 && (
-                      <div style={{ marginTop: '14px' }}>
-                        <strong>Active Alerts & Notes:</strong>
-                        <div className="policy-alerts-group" style={{ marginTop: '8px' }}>
-                          {copilotIntel.alerts.map((al, i) => (
-                            <div key={i} className="alert-item" style={{ color: al.includes("High-risk") || al.includes("Escalation") || al.includes("Handbook limitation") ? 'var(--danger-color)' : 'var(--warning-color)' }}>
-                              {al}
+                        <div className={`suggested-response-box ${copilotIntel.autoHandled ? "auto-sent" : ""}`}>
+                          "{copilotIntel.suggestedResponse}"
+                        </div>
+
+                        {!copilotAutonomy && (
+                          <button
+                            type="button"
+                            className="btn-send-suggested"
+                            onClick={() => {
+                              if (!copilotIntel.suggestedResponse) return;
+                              setConversation(prev => [...prev, { sender: "agent", text: copilotIntel.suggestedResponse }]);
+                              handleSpeakText(copilotIntel.suggestedResponse, 'relay-resp');
+                            }}
+                            style={{ marginTop: '10px' }}
+                          >
+                            Send Suggested Reply to Customer
+                          </button>
+                        )}
+                        {copilotIntel.suggestedQuestions.length > 0 && (
+                          <div style={{ marginTop: '14px' }}>
+                            <strong>Suggested Questions to Ask Caller:</strong>
+                            <div className="suggested-q-list">
+                              {copilotIntel.suggestedQuestions.map((q, qidx) => (
+                                <button key={qidx} className="suggested-q-btn" onClick={() => handleAddStatement(q)}>
+                                  • {q}
+                                </button>
+                              ))}
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                          </div>
+                        )}
 
-                {/* Contextual CRM Actions */}
-                <div className="copilot-actions-footer" style={{ marginTop: '20px' }}>
-                  <strong>Contextual CRM Actions:</strong>
-                  <div className="action-buttons-grid">
-                    {getContextualActions(copilotIntel.intent).map((action, i) => (
-                      <button key={i} onClick={() => triggerCrmAction(action)} className={ACTION_STYLE[action] || "act-btn"}>
-                        {action}
-                      </button>
-                    ))}
+                        {copilotIntel.nextAction && (
+                          <div className="next-best-action-banner">
+                            <strong>Next Best Action:</strong> {copilotIntel.nextAction}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* SECTION 4: POLICY KNOWLEDGE & RULES */}
+                      <div className="copilot-section-card">
+                        <div className="copilot-section-header">4. Policy Knowledge & Rules</div>
+                        
+                        {copilotIntel.policyRule && (
+                          <div className="policy-clause-box">
+                            <strong>Policy Knowledge:</strong> {copilotIntel.policyRule}
+                          </div>
+                        )}
+
+                        {copilotIntel.reqDocs.length > 0 && (
+                          <div style={{ marginTop: '14px' }}>
+                            <strong>Required Documents:</strong>
+                            <div className="req-docs-group" style={{ marginTop: '8px' }}>
+                              {copilotIntel.reqDocs.map((doc, i) => <span key={i} className="doc-pill">{doc}</span>)}
+                            </div>
+                          </div>
+                        )}
+
+                        {copilotIntel.alerts.length > 0 && (
+                          <div style={{ marginTop: '14px' }}>
+                            <strong>Active Alerts & Notes:</strong>
+                            <div className="policy-alerts-group" style={{ marginTop: '8px' }}>
+                              {copilotIntel.alerts.map((al, i) => (
+                                <div key={i} className="alert-item" style={{ color: al.includes("High-risk") || al.includes("Escalation") || al.includes("Handbook limitation") ? 'var(--danger-color)' : 'var(--warning-color)' }}>
+                                  {al}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Contextual CRM Actions */}
+                    <div className="copilot-actions-footer" style={{ marginTop: '20px' }}>
+                      <strong>Contextual CRM Actions:</strong>
+                      <div className="action-buttons-grid">
+                        {getContextualActions(copilotIntel.intent).map((action, i) => (
+                          <button key={i} onClick={() => triggerCrmAction(action)} className={ACTION_STYLE[action] || "act-btn"}>
+                            {action}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* RAG Knowledge Base Direct Search */}
             <div className="content-card RAG-search-card" style={{ marginTop: '24px' }}>
