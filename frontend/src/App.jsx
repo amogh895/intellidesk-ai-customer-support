@@ -187,6 +187,48 @@ const INITIAL_EVAL_METRICS = [
   { metric_name: "Harmfulness / Safety", score: 0.0, chunk_size_config: 500, benchmark_status: "Target Met" }
 ];
 
+const INITIAL_CONVERSATIONS = [
+  {
+    id: "CONV-1001",
+    customer_id: "CRM-101",
+    customer_name: "Rahul Verma",
+    agent_id: "AGT-304",
+    agent_name: "Sarah Jenkins (Tier 3 Support)",
+    channel: "Voice Intake (STT)",
+    caller_sentiment: "anxious",
+    transcript: "Caller inquiry regarding compulsory deductible for minor parking scrape under POL-NB-2026-9921.",
+    ai_copilot_response: "Copilot retrieved Clause 4 (Deductibles ₹1,000) and verified Zero Depreciation add-on rider active. Drafted response for Tier 3 agent.",
+    resolution_status: "Resolved",
+    timestamp: "2026-09-15 23:40:12"
+  },
+  {
+    id: "CONV-1002",
+    customer_id: "CRM-103",
+    customer_name: "Amit Patel",
+    agent_id: "AGT-309",
+    agent_name: "David Chen (Tier 3 Support)",
+    channel: "Voice Intake (STT)",
+    caller_sentiment: "frustrated",
+    transcript: "Commercial fleet manager inquiry regarding status of highway collision claim CLM-9104 for ₹84,000.",
+    ai_copilot_response: "Flagged required Level 2 Claims Manager approval due to payout exceeding $1,000 threshold. Suspended for HITL approval queue.",
+    resolution_status: "Escalated to Level 2 HITL",
+    timestamp: "2026-09-15 23:15:00"
+  },
+  {
+    id: "CONV-1003",
+    customer_id: "CRM-102",
+    customer_name: "Priya Sharma",
+    agent_id: "AGT-301",
+    agent_name: "Anita Ray (Tier 3 Support)",
+    channel: "Text Chat",
+    caller_sentiment: "neutral",
+    transcript: "Customer requested information on NCB discount rollover for policy renewal POL-NB-2026-4410.",
+    ai_copilot_response: "Copilot cited Clause 3 NCB Entitlement. Verified 25% NCB tier applicable for next renewal cycle.",
+    resolution_status: "Resolved",
+    timestamp: "2026-09-15 22:10:45"
+  }
+];
+
 export default function App() {
   // ─── STATE MANAGEMENT ───
   const [isAuthenticated, setIsAuthenticated] = useState(true);
@@ -217,6 +259,11 @@ export default function App() {
   const [kbClauses, setKbClauses] = useState(INITIAL_KB_CLAUSES);
   const [kbStats, setKbStats] = useState({ vector_database: "PostgreSQL + pgvector Store", total_embeddings: 107, chunk_strategy: "500 Characters (Overlap: 100)" });
   const [evalMetrics, setEvalMetrics] = useState(INITIAL_EVAL_METRICS);
+
+  // Centralized Call Ledger DB state (Restricted to Supervisor & Claims Manager)
+  const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS);
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [conversationSearchQuery, setConversationSearchQuery] = useState("");
 
   const [messages, setMessages] = useState([
     {
@@ -296,6 +343,17 @@ export default function App() {
     fetchRealData();
   }, []);
 
+  useEffect(() => {
+    if (user.role !== "Support Agent") {
+      fetch(`${API_BASE_URL}/conversations?user_role=${encodeURIComponent(user.role)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) setConversations(data);
+        })
+        .catch(() => {});
+    }
+  }, [user.role]);
+
   const fetchRealData = async () => {
     try {
       const controller = new AbortController();
@@ -330,6 +388,14 @@ export default function App() {
       const resEv = await fetch(`${API_BASE_URL}/eval/metrics`);
       if (resEv.ok) setEvalMetrics(await resEv.json());
 
+      if (user.role !== "Support Agent") {
+        const resConv = await fetch(`${API_BASE_URL}/conversations?user_role=${encodeURIComponent(user.role)}`);
+        if (resConv.ok) {
+          const dataConv = await resConv.json();
+          if (Array.isArray(dataConv) && dataConv.length > 0) setConversations(dataConv);
+        }
+      }
+
     } catch (err) {
       console.log("Backend offline. Running with client-side 200 customer data pool.");
     }
@@ -361,7 +427,7 @@ export default function App() {
   const canAccessTab = (tabName) => {
     if (user.role === "Claims Manager") return true; // Unrestricted access
     if (user.role === "Supervisor") {
-      return ["dashboard", "copilot", "tickets", "approvals", "kb", "audit"].includes(tabName);
+      return ["dashboard", "copilot", "tickets", "approvals", "conversations", "kb", "audit"].includes(tabName);
     }
     if (user.role === "Support Agent") {
       return ["copilot", "tickets"].includes(tabName); // Frontline only
@@ -805,6 +871,17 @@ export default function App() {
                 {pendingApprovals.length > 0 && (
                   <span className="nav-counter-badge">{pendingApprovals.length}</span>
                 )}
+              </button>
+            )}
+
+            {canAccessTab("conversations") && (
+              <button
+                className={`nav-item ${activeTab === "conversations" ? "active" : ""}`}
+                onClick={() => setActiveTab("conversations")}
+              >
+                <span className="nav-icon">📞</span>
+                <span className="nav-label">Call Ledger DB</span>
+                <span className="nav-pill restricted">Tier 1-2</span>
               </button>
             )}
 
@@ -1426,7 +1503,167 @@ export default function App() {
             </div>
           )}
 
-          {/* PAGE 5: KNOWLEDGE BASE */}
+          {/* PAGE 5: CENTRALIZED CALL DB LEDGER (Supervisor & Claims Manager Only) */}
+          {activeTab === "conversations" && (
+            <div className="page-container">
+              <div className="page-header">
+                <h2>Centralized Customer & Agent Call Ledger ({conversations.length} Records)</h2>
+                <p>Immutable database of all Tier 3 Support Agent customer call transcripts & AI copilot responses. Restricted to Supervisors (Tier 2) and Claims Managers (Tier 1).</p>
+              </div>
+
+              {user.role === "Support Agent" ? (
+                <div className="rbac-denied-card">
+                  <span style={{ fontSize: "3rem" }}>🔒</span>
+                  <h3 style={{ marginTop: "16px" }}>RBAC Access Denied</h3>
+                  <p style={{ color: "var(--text-muted)", marginTop: "8px" }}>
+                    Support Agents (Tier 3) do not have permission to access the Centralized Call Ledger Database.
+                    This resource is restricted to Supervisors and Claims Managers.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="conversations-filter-bar">
+                    <div className="global-search-bar flex-1">
+                      <span className="search-icon">🔍</span>
+                      <input
+                        type="text"
+                        placeholder="Search by customer name, agent name, conversation ID..."
+                        value={conversationSearchQuery}
+                        onChange={(e) => setConversationSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    <span className="records-count-chip">{conversations.length} Call Records</span>
+                  </div>
+
+                  <div className="table-wrapper">
+                    <table className="enterprise-table">
+                      <thead>
+                        <tr>
+                          <th>Conv ID</th>
+                          <th>Customer</th>
+                          <th>Agent</th>
+                          <th>Channel</th>
+                          <th>Sentiment</th>
+                          <th>Resolution</th>
+                          <th>Timestamp</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {conversations
+                          .filter((conv) => {
+                            if (!conversationSearchQuery) return true;
+                            const q = conversationSearchQuery.toLowerCase();
+                            return (
+                              conv.id.toLowerCase().includes(q) ||
+                              conv.customer_name.toLowerCase().includes(q) ||
+                              conv.agent_name.toLowerCase().includes(q) ||
+                              conv.customer_id.toLowerCase().includes(q)
+                            );
+                          })
+                          .map((conv) => (
+                            <tr key={conv.id}>
+                              <td className="mono font-bold">{conv.id}</td>
+                              <td>
+                                <div className="table-cust-cell">
+                                  <span className="font-bold">{conv.customer_name}</span>
+                                  <span className="sub-text">{conv.customer_id}</span>
+                                </div>
+                              </td>
+                              <td>
+                                <div className="table-agent-cell">
+                                  <span>{conv.agent_name}</span>
+                                  <span className="sub-text">{conv.agent_id}</span>
+                                </div>
+                              </td>
+                              <td><span className="channel-chip">{conv.channel}</span></td>
+                              <td>
+                                <span className={`sentiment-badge sentiment-${conv.caller_sentiment}`}>
+                                  {conv.caller_sentiment === "frustrated" ? "😤" : conv.caller_sentiment === "anxious" ? "😟" : "😐"} {conv.caller_sentiment}
+                                </span>
+                              </td>
+                              <td><span className="status-pill active">{conv.resolution_status}</span></td>
+                              <td className="mono text-sm">{conv.timestamp}</td>
+                              <td>
+                                <button
+                                  className="table-action-btn"
+                                  onClick={() => setSelectedConversation(conv)}
+                                >
+                                  View Transcript ➔
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {/* Conversation Transcript Drawer */}
+              {selectedConversation && (
+                <div className="citation-drawer-overlay" onClick={() => setSelectedConversation(null)}>
+                  <div className="citation-drawer-panel wide-drawer" onClick={(e) => e.stopPropagation()}>
+                    <div className="drawer-header">
+                      <h3>Call Transcript — {selectedConversation.id}</h3>
+                      <button className="close-drawer-btn" onClick={() => setSelectedConversation(null)}>
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="drawer-body">
+                      <div className="drawer-meta-grid">
+                        <div className="drawer-meta-item">
+                          <span className="drawer-label">Customer</span>
+                          <span className="drawer-value font-bold">{selectedConversation.customer_name} ({selectedConversation.customer_id})</span>
+                        </div>
+                        <div className="drawer-meta-item">
+                          <span className="drawer-label">Support Agent</span>
+                          <span className="drawer-value">{selectedConversation.agent_name} ({selectedConversation.agent_id})</span>
+                        </div>
+                        <div className="drawer-meta-item">
+                          <span className="drawer-label">Channel</span>
+                          <span className="drawer-value"><span className="channel-chip">{selectedConversation.channel}</span></span>
+                        </div>
+                        <div className="drawer-meta-item">
+                          <span className="drawer-label">Caller Sentiment</span>
+                          <span className="drawer-value">
+                            <span className={`sentiment-badge sentiment-${selectedConversation.caller_sentiment}`}>
+                              {selectedConversation.caller_sentiment}
+                            </span>
+                          </span>
+                        </div>
+                        <div className="drawer-meta-item">
+                          <span className="drawer-label">Resolution Status</span>
+                          <span className="drawer-value"><span className="status-pill active">{selectedConversation.resolution_status}</span></span>
+                        </div>
+                        <div className="drawer-meta-item">
+                          <span className="drawer-label">Timestamp</span>
+                          <span className="drawer-value mono">{selectedConversation.timestamp}</span>
+                        </div>
+                      </div>
+
+                      <div className="passage-content-box">
+                        <span className="passage-title">Customer Call Transcript:</span>
+                        <div className="transcript-box">
+                          <p className="passage-text">"{selectedConversation.transcript}"</p>
+                        </div>
+                      </div>
+
+                      <div className="passage-content-box copilot-response-box">
+                        <span className="passage-title">AI Copilot Response & Action:</span>
+                        <div className="transcript-box" style={{ borderLeftColor: "var(--accent-emerald)" }}>
+                          <p className="passage-text">"{selectedConversation.ai_copilot_response}"</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* PAGE 6: KNOWLEDGE BASE */}
           {activeTab === "kb" && (
             <div className="page-container">
               <div className="page-header">

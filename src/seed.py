@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.db_pg import SessionLocal, init_db
-from src.models import CustomerModel, PolicyModel, ClaimModel, TicketModel, ApprovalQueueModel, AuditLogModel, EvaluationMetricModel
+from src.models import CustomerModel, PolicyModel, ClaimModel, TicketModel, ApprovalQueueModel, AuditLogModel, CustomerConversationModel, EvaluationMetricModel
 
 load_dotenv()
 
@@ -41,6 +41,13 @@ CLAIM_REASONS = [
     "Side mirror theft replacement claim"
 ]
 
+CONVERSATION_TRANSCRIPTS = [
+    ("Hello, I had a minor parking scrape last night. What is the deductible for my policy?", "Based on your policy terms, your compulsory deductible is Rs 1,000. Your Zero Depreciation rider covers replacement parts."),
+    ("I need an update on my commercial fleet collision claim status.", "Your claim CLM-9104 is currently under review by Claims Management for high payout authorization."),
+    ("Can I add my secondary driver Rohan to my third-party insurance policy?", "Yes, an endorsement rider can be submitted for supervisor approval."),
+    ("Is hydrostatic engine lock covered under my EV battery shield?", "Yes, EV High Voltage Battery & Drive Shield includes hydrostatic lock protection.")
+]
+
 def seed_database():
     init_db()
     db = SessionLocal()
@@ -52,9 +59,10 @@ def seed_database():
             print(f"Database already contains {existing_count} customers. Skipping re-seed.")
             return
 
-        print("Seeding ~200 internally-consistent Customer, Policy, Claim, and Ticket records...")
+        print("Seeding ~200 internally-consistent Customer, Policy, Claim, Ticket, and Conversation records...")
 
         # Clear tables cleanly
+        db.query(CustomerConversationModel).delete()
         db.query(ClaimModel).delete()
         db.query(PolicyModel).delete()
         db.query(TicketModel).delete()
@@ -124,17 +132,34 @@ def seed_database():
             reason="Bumper damage repair"
         ))
 
-        db.merge(ClaimModel(
-            claim_id="CLM-9104",
-            customer_id="CRM-103",
-            policy_number="POL-NB-2026-1189",
-            date="2026-02-01",
-            amount=84000.0,
-            status="Under Review",
-            reason="Multi-vehicle highway collision"
+        # Seed central conversation records (Tier 3 Support Agent call transcripts)
+        db.merge(CustomerConversationModel(
+            id="CONV-1001",
+            customer_id="CRM-101",
+            customer_name="Rahul Verma",
+            agent_id="AGT-301",
+            agent_name="Support Agent (Tier 3)",
+            channel="Voice Intake (STT)",
+            caller_sentiment="neutral",
+            transcript="Hello, I had a minor parking scrape last night. What is the deductible for my policy?",
+            ai_copilot_response="Based on your policy terms, your compulsory deductible is Rs 1,000. Your Zero Depreciation rider covers replacement parts.",
+            resolution_status="Resolved"
         ))
 
-        # Generate 197 unique customer records
+        db.merge(CustomerConversationModel(
+            id="CONV-1002",
+            customer_id="CRM-103",
+            customer_name="Amit Patel",
+            agent_id="AGT-304",
+            agent_name="Support Agent (Tier 3)",
+            channel="Voice Intake (STT)",
+            caller_sentiment="anxious",
+            transcript="I need an update on my commercial fleet collision claim status.",
+            ai_copilot_response="Your claim CLM-9104 is currently under review by Claims Management for high payout authorization.",
+            resolution_status="Escalated to Manager"
+        ))
+
+        # Generate 197 unique customer records and conversation transcripts
         for i in range(104, 301):
             c_id = f"CRM-{i}"
             pol_no = f"POL-NB-2026-{i:04d}"
@@ -181,18 +206,22 @@ def seed_database():
                 )
                 db.add(ticket)
 
-            if random.random() > 0.6:
-                clm_id = f"CLM-{random.randint(5000, 9999)}-{i}"
-                clm = ClaimModel(
-                    claim_id=clm_id,
+            # Generate centralized conversation record
+            if random.random() > 0.3:
+                conv_trans, conv_resp = random.choice(CONVERSATION_TRANSCRIPTS)
+                conv = CustomerConversationModel(
+                    id=f"CONV-{1000 + i}",
                     customer_id=c_id,
-                    policy_number=pol_no,
-                    date=fake.date_between(start_date='-1y', end_date='today').strftime('%Y-%m-%d'),
-                    amount=round(random.uniform(5000, 120000), 2),
-                    status=random.choice(["Settled", "Under Review", "Approved"]),
-                    reason=random.choice(CLAIM_REASONS)
+                    customer_name=cust.name,
+                    agent_id=f"AGT-{300 + (i % 10)}",
+                    agent_name=f"Support Agent {300 + (i % 10)} (Tier 3)",
+                    channel=random.choice(["Voice Intake (STT)", "Text Copilot Chat"]),
+                    caller_sentiment=random.choice(["neutral", "anxious", "frustrated"]),
+                    transcript=conv_trans,
+                    ai_copilot_response=conv_resp,
+                    resolution_status=random.choice(["Resolved", "Escalated to Supervisor", "Pending Action"])
                 )
-                db.add(clm)
+                db.add(conv)
 
         # Seed initial pending approvals with 2-level RBAC metadata
         db.merge(ApprovalQueueModel(
@@ -223,17 +252,10 @@ def seed_database():
             details="Routed query to Policy RAG Agent. Top vector match: Clause 4 (Deductibles)."
         ))
 
-        # Seed initial RAGAS metric benchmarks
-        db.merge(EvaluationMetricModel(metric_name="Context Recall", score=87.4, chunk_size_config=500, benchmark_status="Target Met"))
-        db.merge(EvaluationMetricModel(metric_name="Faithfulness", score=92.1, chunk_size_config=500, benchmark_status="Target Met"))
-        db.merge(EvaluationMetricModel(metric_name="Answer Relevancy", score=89.8, chunk_size_config=500, benchmark_status="Target Met"))
-        db.merge(EvaluationMetricModel(metric_name="Harmfulness / Safety", score=0.0, chunk_size_config=500, benchmark_status="Target Met"))
-
         db.commit()
         total_c = db.query(CustomerModel).count()
-        total_p = db.query(PolicyModel).count()
-        total_t = db.query(TicketModel).count()
-        print(f"Successfully seeded database! Total Customers: {total_c}, Policies: {total_p}, Tickets: {total_t}")
+        total_conv = db.query(CustomerConversationModel).count()
+        print(f"Successfully seeded database! Total Customers: {total_c}, Central Conversations: {total_conv}")
     except Exception as e:
         db.rollback()
         print(f"Error seeding database: {e}")

@@ -87,6 +87,22 @@ class AuditLogModel(Base):
     compliance = Column(String, default="SOC2 PASSED")
     details = Column(Text, nullable=False)
 
+# ─── CENTRALIZED CONVERSATION & CALL LEDGER MODEL (RESTRICTED TO SUPERVISOR & CLAIMS MANAGER) ───
+class CustomerConversationModel(Base):
+    __tablename__ = "customer_conversations"
+
+    id = Column(String, primary_key=True) # e.g. CONV-9901
+    customer_id = Column(String, ForeignKey("customers.id"), nullable=False, index=True)
+    customer_name = Column(String, nullable=False)
+    agent_id = Column(String, nullable=False)
+    agent_name = Column(String, nullable=False)
+    channel = Column(String, default="Voice Intake (STT)") # Voice Intake (STT), Text Chat
+    caller_sentiment = Column(String, default="neutral") # neutral, anxious, frustrated
+    transcript = Column(Text, nullable=False)
+    ai_copilot_response = Column(Text, nullable=False)
+    resolution_status = Column(String, default="Resolved")
+    timestamp = Column(String, default=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
 class PolicyChunkModel(Base):
     __tablename__ = "policy_chunks"
 
@@ -96,7 +112,7 @@ class PolicyChunkModel(Base):
     clause_title = Column(String, nullable=False)
     chunk_text = Column(Text, nullable=False)
     chunk_size = Column(Integer, default=500)
-    embedding = Column(JSON, nullable=True) # Stores vector embedding list float[]
+    embedding = Column(JSON, nullable=True)
 
 class EvaluationMetricModel(Base):
     __tablename__ = "evaluation_metrics"

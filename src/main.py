@@ -9,7 +9,7 @@ import json
 import asyncio
 
 from src.db_pg import get_db, init_db
-from src.models import CustomerModel, PolicyModel, ClaimModel, TicketModel, ApprovalQueueModel, AuditLogModel, PolicyChunkModel, EvaluationMetricModel
+from src.models import CustomerModel, PolicyModel, ClaimModel, TicketModel, ApprovalQueueModel, AuditLogModel, PolicyChunkModel, EvaluationMetricModel, CustomerConversationModel
 from src.agent.real_graph import real_agent_graph
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -304,6 +304,46 @@ async def get_audit_logs(db=Depends(get_db)):
             "details": l.details
         }
         for l in logs
+    ]
+
+# ─── CENTRALIZED CONVERSATION & CALL LEDGER (RESTRICTED TO SUPERVISOR & CLAIMS MANAGER) ───
+@app.get("/api/conversations")
+async def get_conversations(
+    user_role: Optional[str] = Query("Claims Manager"),
+    customer_id: Optional[str] = Query(None),
+    db=Depends(get_db)
+):
+    """
+    Centralized DB ledger storing all customer-tier 3 agent call/conversation transcripts.
+    RBAC Restriction: Exclusive to 'Supervisor' (Tier 2) and 'Claims Manager' (Tier 1).
+    Support Agents (Tier 3) receive 403 Forbidden.
+    """
+    if user_role not in ["Supervisor", "Claims Manager", "Admin"]:
+        raise HTTPException(
+            status_code=403,
+            detail=f"RBAC Access Denied: Centralized Call Ledger is restricted to Supervisors and Claims Managers. Support Agents cannot access this database. Your current role is '{user_role}'."
+        )
+
+    query_builder = db.query(CustomerConversationModel)
+    if customer_id:
+        query_builder = query_builder.filter(CustomerConversationModel.customer_id == customer_id)
+
+    convs = query_builder.order_by(CustomerConversationModel.timestamp.desc()).limit(100).all()
+    return [
+        {
+            "id": c.id,
+            "customer_id": c.customer_id,
+            "customer_name": c.customer_name,
+            "agent_id": c.agent_id,
+            "agent_name": c.agent_name,
+            "channel": c.channel,
+            "caller_sentiment": c.caller_sentiment,
+            "transcript": c.transcript,
+            "ai_copilot_response": c.ai_copilot_response,
+            "resolution_status": c.resolution_status,
+            "timestamp": c.timestamp
+        }
+        for c in convs
     ]
 
 # ─── KNOWLEDGE BASE ───
