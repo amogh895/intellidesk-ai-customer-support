@@ -176,13 +176,15 @@ export default function App() {
   // Active Sidebar Page: 'dashboard', 'copilot', 'tickets', 'approvals', 'kb', 'audit', 'eval', 'settings'
   const [activeTab, setActiveTab] = useState("copilot");
 
+  // Sub-Navigation Tab for Copilot Workspace: 'chat', 'crm', 'voice', 'grid'
+  const [copilotSubTab, setCopilotSubTab] = useState("chat");
+
   // Selected Customer in Copilot Workspace
   const [selectedCustomer, setSelectedCustomer] = useState(DEFAULT_CUSTOMERS[0]);
   const [queryInput, setQueryInput] = useState("");
   const [autonomyEnabled, setAutonomyEnabled] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [focusedCard, setFocusedCard] = useState("all"); // 'all', 'crm', 'voice', 'copilot'
   const [toastMessage, setToastMessage] = useState("");
 
   // Citation Drawer Right Panel State
@@ -238,7 +240,7 @@ export default function App() {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, copilotSubTab]);
 
   // Dark Mode Toggle Class Handler
   useEffect(() => {
@@ -542,7 +544,7 @@ export default function App() {
             onClick={() => setIsDarkMode(!isDarkMode)}
             title="Toggle Light / Dark Mode"
           >
-            {isDarkMode ? "☀️" : "🌙"}
+            {isDarkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
           </button>
 
           {/* User Profile & Role */}
@@ -555,7 +557,7 @@ export default function App() {
           </div>
 
           <button className="logout-btn" onClick={() => setIsAuthenticated(false)} title="Sign out">
-            🚪
+            🚪 Logout
           </button>
         </div>
       </header>
@@ -649,189 +651,76 @@ export default function App() {
           {/* ────────────────────────────────────────────────────────── */}
           {activeTab === "copilot" && (
             <div className="copilot-page-layout">
-              {/* Top Workflow Banner */}
-              <div className="agent-quick-helper">
-                <div className="helper-content">
-                  <span className="helper-badge">💡 Agent Workflow Helper</span>
-                  <span className="helper-text">
-                    Select customer context below, speak or type query. Grounded citations open the right-side inspection drawer.
-                  </span>
+              {/* TOP NAVIGATION BAR TO SPLIT WORKSPACE CONTENT */}
+              <div className="sub-navbar-header">
+                <div className="sub-navbar-left">
+                  <span className="customer-select-label">Active Customer Context:</span>
+                  <select
+                    className="top-customer-dropdown"
+                    value={selectedCustomer.id}
+                    onChange={(e) =>
+                      setSelectedCustomer(
+                        DEFAULT_CUSTOMERS.find((c) => c.id === e.target.value) || DEFAULT_CUSTOMERS[0]
+                      )
+                    }
+                  >
+                    {DEFAULT_CUSTOMERS.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        👤 {c.id} — {c.name} ({c.policy_type})
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div className="focus-controls">
-                  <span className="focus-label">Layout View:</span>
+
+                <div className="sub-navbar-tabs">
                   <button
-                    className={`focus-btn ${focusedCard === "all" ? "active" : ""}`}
-                    onClick={() => setFocusedCard("all")}
+                    className={`sub-nav-tab ${copilotSubTab === "chat" ? "active" : ""}`}
+                    onClick={() => setCopilotSubTab("chat")}
                   >
-                    Standard 3-Card
+                    🤖 Copilot AI Chat
                   </button>
+
                   <button
-                    className={`focus-btn ${focusedCard === "crm" ? "active" : ""}`}
-                    onClick={() => setFocusedCard("crm")}
+                    className={`sub-nav-tab ${copilotSubTab === "crm" ? "active" : ""}`}
+                    onClick={() => setCopilotSubTab("crm")}
                   >
-                    CRM Focus
+                    👤 Customer Profile & CRM
                   </button>
+
                   <button
-                    className={`focus-btn ${focusedCard === "voice" ? "active" : ""}`}
-                    onClick={() => setFocusedCard("voice")}
+                    className={`sub-nav-tab ${copilotSubTab === "voice" ? "active" : ""}`}
+                    onClick={() => setCopilotSubTab("voice")}
                   >
-                    Voice Focus
+                    🎙️ Voice Intake Studio
                   </button>
+
                   <button
-                    className={`focus-btn ${focusedCard === "copilot" ? "active" : ""}`}
-                    onClick={() => setFocusedCard("copilot")}
+                    className={`sub-nav-tab ${copilotSubTab === "grid" ? "active" : ""}`}
+                    onClick={() => setCopilotSubTab("grid")}
                   >
-                    Chat Focus
+                    🔲 Multi-Card Split View
                   </button>
                 </div>
               </div>
 
-              {/* 3-CARD WORKSPACE GRID */}
-              <div className={`workspace-cards-grid focus-${focusedCard}`}>
-                {/* CARD 1: CUSTOMER PROFILE & CRM */}
-                {(focusedCard === "all" || focusedCard === "crm") && (
-                  <div className="workspace-card crm-card">
+              {/* VIEW MODE 1: COPILOT CHAT MAIN FOCUS */}
+              {copilotSubTab === "chat" && (
+                <div className="spacious-card-container">
+                  <div className="workspace-card copilot-card full-focus-card">
                     <div className="card-header">
                       <div className="card-title">
-                        <span className="card-icon">👤</span> Customer Profile
+                        <span className="card-icon">🤖</span> AI Copilot Assistant — {selectedCustomer.name} ({selectedCustomer.policy_number})
                       </div>
-                      <select
-                        className="customer-selector"
-                        value={selectedCustomer.id}
-                        onChange={(e) =>
-                          setSelectedCustomer(
-                            DEFAULT_CUSTOMERS.find((c) => c.id === e.target.value) || DEFAULT_CUSTOMERS[0]
-                          )
-                        }
-                      >
-                        {DEFAULT_CUSTOMERS.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.id} - {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="card-body">
-                      <div className="customer-meta-row">
-                        <div className="meta-item">
-                          <span className="meta-label">Customer ID</span>
-                          <span
-                            className="meta-value clickable"
-                            onClick={() => copyToClipboard(selectedCustomer.id, "Customer ID")}
-                          >
-                            {selectedCustomer.id} 📋
-                          </span>
-                        </div>
-                        <div className="meta-item">
-                          <span className="meta-label">Risk Tier</span>
-                          <span className={`risk-badge risk-${selectedCustomer.risk_tier.toLowerCase()}`}>
-                            {selectedCustomer.risk_tier} Risk
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="meta-item-full">
-                        <span className="meta-label">Policy Number</span>
-                        <span
-                          className="meta-value clickable mono"
-                          onClick={() => copyToClipboard(selectedCustomer.policy_number, "Policy Number")}
-                        >
-                          {selectedCustomer.policy_number} 📋
+                      <div className="header-meta-chips">
+                        <span className="meta-chip blue">Policy: {selectedCustomer.policy_type}</span>
+                        <span className={`risk-badge risk-${selectedCustomer.risk_tier.toLowerCase()}`}>
+                          {selectedCustomer.risk_tier} Risk
                         </span>
-                      </div>
-
-                      <div className="meta-item-full">
-                        <span className="meta-label">Policy Type</span>
-                        <span className="meta-value">{selectedCustomer.policy_type}</span>
-                      </div>
-
-                      <div className="meta-item-full">
-                        <span className="meta-label">Coverage Details</span>
-                        <span className="meta-value text-subtle">{selectedCustomer.coverage_details}</span>
-                      </div>
-
-                      <div className="claims-history-block">
-                        <span className="block-title">Recent Claims History</span>
-                        {selectedCustomer.claims_history.length === 0 ? (
-                          <span className="no-claims">No prior claims on record.</span>
-                        ) : (
-                          selectedCustomer.claims_history.map((claim) => (
-                            <div key={claim.claim_id} className="claim-history-item">
-                              <div className="claim-top">
-                                <span className="claim-id">{claim.claim_id}</span>
-                                <span className="claim-status">{claim.status}</span>
-                              </div>
-                              <div className="claim-sub">
-                                <span>₹{claim.amount.toLocaleString()}</span> • <span>{claim.reason}</span>
-                              </div>
-                            </div>
-                          ))
-                        )}
+                        <span className="graph-state-pill">LangGraph: Active</span>
                       </div>
                     </div>
-                  </div>
-                )}
 
-                {/* CARD 2: VOICE COMMUNICATION STUDIO */}
-                {(focusedCard === "all" || focusedCard === "voice") && (
-                  <div className="workspace-card voice-card">
-                    <div className="card-header">
-                      <div className="card-title">
-                        <span className="card-icon">🎙️</span> Voice Communication Studio
-                      </div>
-                      <span className="live-status-indicator">● WebSpeech STT Active</span>
-                    </div>
-
-                    <div className="card-body">
-                      <div className="voice-controls-bar">
-                        <button
-                          className={`mic-record-btn ${isListening ? "listening" : ""}`}
-                          onClick={toggleListening}
-                        >
-                          <span className="mic-icon">{isListening ? "🔴" : "🎙️"}</span>
-                          <span>{isListening ? "Listening Customer..." : "Start Customer Voice Intake"}</span>
-                        </button>
-                      </div>
-
-                      <div className="dictation-preview-box">
-                        <span className="dictation-label">Live Dictation Transcript:</span>
-                        <p className="dictation-text">
-                          {isListening
-                            ? "Dictating caller audio stream... Transcribing keywords..."
-                            : "Microphone standby. Click button above to initiate voice dictation."}
-                        </p>
-                      </div>
-
-                      <div className="autonomy-toggle-row">
-                        <div className="toggle-info">
-                          <span className="toggle-title">Copilot Autonomy</span>
-                          <span className="toggle-desc">Auto-executes safe draft replies; escalates sensitive claims.</span>
-                        </div>
-                        <label className="switch">
-                          <input
-                            type="checkbox"
-                            checked={autonomyEnabled}
-                            onChange={(e) => setAutonomyEnabled(e.target.checked)}
-                          />
-                          <span className="slider round"></span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* CARD 3: COPILOT CUSTOMER HANDLER (MAIN CHAT) */}
-                {(focusedCard === "all" || focusedCard === "copilot") && (
-                  <div className="workspace-card copilot-card">
-                    <div className="card-header">
-                      <div className="card-title">
-                        <span className="card-icon">🤖</span> Copilot Customer Handler
-                      </div>
-                      <span className="graph-state-pill">LangGraph: Ready</span>
-                    </div>
-
-                    <div className="chat-messages-container">
+                    <div className="chat-messages-container large-text-messages">
                       {messages.map((msg) => (
                         <div key={msg.id} className={`chat-message-row message-${msg.sender}`}>
                           <div className="message-bubble">
@@ -845,9 +734,7 @@ export default function App() {
                               </span>
 
                               {msg.sender === "agent" && (
-                                <span
-                                  className={`confidence-badge ${msg.grounded ? "high" : "low"}`}
-                                >
+                                <span className={`confidence-badge ${msg.grounded ? "high" : "low"}`}>
                                   {msg.grounded ? "🟢 Grounded (96%)" : "🟡 Verify Confidence (68%)"}
                                 </span>
                               )}
@@ -915,7 +802,7 @@ export default function App() {
                                 onClick={() => handleSpeakText(msg.text)}
                                 title="Read Aloud"
                               >
-                                🔊 {isSpeaking ? "Stop Voice" : "Speak Response"}
+                                🔊 {isSpeaking ? "Stop Voice Playback" : "Speak AI Response"}
                               </button>
                             )}
                           </div>
@@ -924,20 +811,210 @@ export default function App() {
                       <div ref={chatEndRef} />
                     </div>
 
-                    <form onSubmit={handleSendMessage} className="chat-input-bar">
+                    <form onSubmit={handleSendMessage} className="chat-input-bar large-input-bar">
                       <input
                         type="text"
                         value={queryInput}
                         onChange={(e) => setQueryInput(e.target.value)}
-                        placeholder={`Ask AI copilot regarding ${selectedCustomer.name}'s policy or claim...`}
+                        placeholder={`Type query regarding ${selectedCustomer.name}'s policy or claim...`}
                       />
-                      <button type="submit" className="send-btn">
+                      <button type="submit" className="send-btn large-btn">
                         Dispatch Agent ➔
                       </button>
                     </form>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+
+              {/* VIEW MODE 2: CUSTOMER CRM PROFILE */}
+              {copilotSubTab === "crm" && (
+                <div className="spacious-card-container">
+                  <div className="workspace-card crm-card full-focus-card">
+                    <div className="card-header">
+                      <div className="card-title">
+                        <span className="card-icon">👤</span> Customer Profile & CRM Record
+                      </div>
+                      <span className="meta-value mono font-bold">{selectedCustomer.id}</span>
+                    </div>
+
+                    <div className="card-body spacious-body">
+                      <div className="customer-info-grid">
+                        <div className="info-box">
+                          <span className="meta-label">Full Customer Name</span>
+                          <span className="meta-value large-val">{selectedCustomer.name}</span>
+                        </div>
+
+                        <div className="info-box">
+                          <span className="meta-label">Risk Tier</span>
+                          <span className={`risk-badge risk-${selectedCustomer.risk_tier.toLowerCase()} large-badge`}>
+                            {selectedCustomer.risk_tier} Risk Tier
+                          </span>
+                        </div>
+
+                        <div className="info-box">
+                          <span className="meta-label">Email Address</span>
+                          <span className="meta-value">{selectedCustomer.email}</span>
+                        </div>
+
+                        <div className="info-box">
+                          <span className="meta-label">Phone Number</span>
+                          <span className="meta-value">{selectedCustomer.phone}</span>
+                        </div>
+
+                        <div className="info-box">
+                          <span className="meta-label">Policy Number</span>
+                          <span
+                            className="meta-value clickable mono large-val"
+                            onClick={() => copyToClipboard(selectedCustomer.policy_number, "Policy Number")}
+                          >
+                            {selectedCustomer.policy_number} 📋
+                          </span>
+                        </div>
+
+                        <div className="info-box">
+                          <span className="meta-label">Policy Type</span>
+                          <span className="meta-value large-val">{selectedCustomer.policy_type}</span>
+                        </div>
+
+                        <div className="info-box full-width-box">
+                          <span className="meta-label">Coverage Details & Riders</span>
+                          <span className="meta-value">{selectedCustomer.coverage_details}</span>
+                        </div>
+                      </div>
+
+                      <div className="claims-history-block spacious-block">
+                        <h3 className="block-title large-title">Recent Claims History Ledger</h3>
+                        {selectedCustomer.claims_history.length === 0 ? (
+                          <div className="no-claims-box">
+                            <span>No prior claims or dispute records on file. Account in good standing.</span>
+                          </div>
+                        ) : (
+                          selectedCustomer.claims_history.map((claim) => (
+                            <div key={claim.claim_id} className="claim-history-card">
+                              <div className="claim-top">
+                                <span className="claim-id mono">{claim.claim_id}</span>
+                                <span className="claim-status-tag">{claim.status}</span>
+                              </div>
+                              <div className="claim-details-row">
+                                <span><strong>Date Filed:</strong> {claim.date}</span>
+                                <span><strong>Amount Claimed:</strong> ₹{claim.amount.toLocaleString()}</span>
+                                <span><strong>Incident Summary:</strong> {claim.reason}</span>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* VIEW MODE 3: VOICE COMMUNICATION STUDIO */}
+              {copilotSubTab === "voice" && (
+                <div className="spacious-card-container">
+                  <div className="workspace-card voice-card full-focus-card">
+                    <div className="card-header">
+                      <div className="card-title">
+                        <span className="card-icon">🎙️</span> Voice Communication Studio — Customer Intake
+                      </div>
+                      <span className="live-status-indicator large-indicator">● WebSpeech Speech Recognition Engine Ready</span>
+                    </div>
+
+                    <div className="card-body spacious-body">
+                      <div className="voice-hero-box">
+                        <h3>Customer Caller Intake & Dictation</h3>
+                        <p>Customer queries are spoken into the microphone and automatically transcribed into the agent pipeline.</p>
+
+                        <button
+                          className={`mic-record-btn large-mic-btn ${isListening ? "listening" : ""}`}
+                          onClick={toggleListening}
+                        >
+                          <span className="mic-icon large-mic-icon">{isListening ? "🔴" : "🎙️"}</span>
+                          <span>{isListening ? "Listening Customer Speech... (Click to Stop)" : "Start Live Customer Voice Intake"}</span>
+                        </button>
+                      </div>
+
+                      <div className="dictation-preview-box large-dictation-box">
+                        <span className="dictation-label">Real-Time Caller Transcript Stream:</span>
+                        <p className="dictation-text large-dictation-text">
+                          {isListening
+                            ? "🎙️ Transcribing caller speech stream in real-time... Keywords detected: bumper damage, zero depreciation claim..."
+                            : "Microphone on standby. Click the intake button above to start transcribing caller voice inquiries."}
+                        </p>
+                      </div>
+
+                      <div className="autonomy-toggle-row spacious-toggle-row">
+                        <div className="toggle-info">
+                          <span className="toggle-title large-title">Copilot Autonomous Mode</span>
+                          <span className="toggle-desc">Auto-executes safe draft replies; automatically triggers HITL interrupts for claims payouts exceeding $1,000.</span>
+                        </div>
+                        <label className="switch large-switch">
+                          <input
+                            type="checkbox"
+                            checked={autonomyEnabled}
+                            onChange={(e) => setAutonomyEnabled(e.target.checked)}
+                          />
+                          <span className="slider round"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* VIEW MODE 4: MULTI-CARD SPLIT VIEW */}
+              {copilotSubTab === "grid" && (
+                <div className="workspace-cards-grid split-grid-view">
+                  {/* CARD 1: CRM */}
+                  <div className="workspace-card crm-card">
+                    <div className="card-header">
+                      <div className="card-title"><span className="card-icon">👤</span> Customer Profile</div>
+                    </div>
+                    <div className="card-body">
+                      <div className="meta-item">
+                        <span className="meta-label">Customer</span>
+                        <span className="meta-value">{selectedCustomer.name} ({selectedCustomer.id})</span>
+                      </div>
+                      <div className="meta-item">
+                        <span className="meta-label">Policy</span>
+                        <span className="meta-value mono">{selectedCustomer.policy_number}</span>
+                      </div>
+                      <div className="meta-item">
+                        <span className="meta-label">Coverage</span>
+                        <span className="meta-value text-subtle">{selectedCustomer.coverage_details}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CARD 2: VOICE */}
+                  <div className="workspace-card voice-card">
+                    <div className="card-header">
+                      <div className="card-title"><span className="card-icon">🎙️</span> Voice Studio</div>
+                    </div>
+                    <div className="card-body">
+                      <button className={`mic-record-btn ${isListening ? "listening" : ""}`} onClick={toggleListening}>
+                        {isListening ? "🔴 Listening..." : "🎙️ Start Voice Intake"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* CARD 3: CHAT */}
+                  <div className="workspace-card copilot-card">
+                    <div className="card-header">
+                      <div className="card-title"><span className="card-icon">🤖</span> AI Copilot</div>
+                    </div>
+                    <div className="chat-messages-container">
+                      {messages.map((msg) => (
+                        <div key={msg.id} className={`chat-message-row message-${msg.sender}`}>
+                          <div className="message-bubble">
+                            <p className="message-text">{msg.text}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* RIGHT SIDE CITATION DRAWER */}
               {activeCitation && (
@@ -1101,7 +1178,7 @@ export default function App() {
                     {DEFAULT_CUSTOMERS.map((c, idx) => (
                       <tr key={c.id}>
                         <td className="mono font-bold">TCK-2026-0{idx + 1}</td>
-                        <td>{c.name}</td>
+                        <td className="font-bold">{c.name}</td>
                         <td className="mono">{c.policy_number}</td>
                         <td>{c.policy_type}</td>
                         <td>
@@ -1122,6 +1199,7 @@ export default function App() {
                             className="table-action-btn"
                             onClick={() => {
                               setSelectedCustomer(c);
+                              setCopilotSubTab("chat");
                               setActiveTab("copilot");
                             }}
                           >
