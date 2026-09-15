@@ -3,52 +3,104 @@ import "./App.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api";
 
-// ─── INITIAL FALLBACK DATA ───
-const INITIAL_CUSTOMERS = [
-  {
-    id: "CRM-101",
-    name: "Rahul Verma",
-    email: "rahul.verma@example.com",
-    phone: "+91 98765 43210",
-    policy_number: "POL-NB-2026-9921",
-    policy_type: "Comprehensive Private Car Policy",
-    status: "Active",
-    premium: 18450,
-    risk_tier: "Low",
-    coverage_details: "Zero Depreciation, Engine Protect, Roadside Assistance, NCB 35%",
-    claims_history: [
-      { claim_id: "CLM-8812", date: "2025-11-14", amount: 12500, status: "Settled", reason: "Bumper damage repair" }
-    ]
-  },
-  {
-    id: "CRM-102",
-    name: "Priya Sharma",
-    email: "priya.sharma@example.com",
-    phone: "+91 91234 56789",
-    policy_number: "POL-NB-2026-4410",
-    policy_type: "Third Party + Theft Coverage",
-    status: "Active",
-    premium: 9200,
-    risk_tier: "Medium",
-    coverage_details: "Third Party Property Damage up to ₹7.5 Lakhs, Fire & Theft",
-    claims_history: []
-  },
-  {
-    id: "CRM-103",
-    name: "Amit Patel",
-    email: "amit.patel@example.com",
-    phone: "+91 99887 76655",
-    policy_number: "POL-NB-2026-1189",
-    policy_type: "Commercial Fleet Vehicle Policy",
-    status: "Under Review",
-    premium: 45000,
-    risk_tier: "High",
-    coverage_details: "Fleet Comprehensive, Goods In Transit Cover, Driver PA ₹15L",
-    claims_history: [
-      { claim_id: "CLM-9104", date: "2026-02-01", amount: 84000, status: "Under Review", reason: "Multi-vehicle highway collision" }
-    ]
-  }
+// ─── GENERATE 200 FULLY CONSISTENT CUSTOMER RECORDS FOR INITIAL STATE ───
+const POLICY_TYPES = [
+  "Comprehensive Private Car Policy",
+  "Third Party + Theft Coverage",
+  "Commercial Fleet Vehicle Policy",
+  "Zero Depreciation Motor Shield",
+  "EV Battery & Drive Cover"
 ];
+
+const RISK_TIERS = ["Low", "Medium", "High"];
+
+const COVERAGE_OPTIONS = [
+  "Zero Depreciation, Engine Protect, Roadside Assistance, NCB 35%",
+  "Third Party Property Damage up to ₹7.5 Lakhs, Fire & Theft",
+  "Fleet Comprehensive, Goods In Transit Cover, Driver PA ₹15L",
+  "Full Bumper-to-Bumper Indemnity, Hydrostatic Lock Cover, Key Replacement",
+  "EV High Voltage Battery Warranty, Wall Charger Surge Protection, Towing Support"
+];
+
+const NAMES_SEED = [
+  "Rahul Verma", "Priya Sharma", "Amit Patel", "Sneha Reddy", "Vikram Singh",
+  "Ananya Iyer", "Rohan Gupta", "Deepika Padukone", "Karan Malhotra", "Pooja Hegde",
+  "Siddharth Rao", "Kavya Nair", "Aditya Joshi", "Meera Sen", "Arjun Kapoor",
+  "Neha Agarwal", "Varun Dhawan", "Shraddha Das", "Gaurav Mehta", "Ritu Saxena"
+];
+
+const generate200Customers = () => {
+  const custs = [
+    {
+      id: "CRM-101",
+      name: "Rahul Verma",
+      email: "rahul.verma@example.com",
+      phone: "+91 98765 43210",
+      policy_number: "POL-NB-2026-9921",
+      policy_type: "Comprehensive Private Car Policy",
+      status: "Active",
+      premium: 18450,
+      risk_tier: "Low",
+      coverage_details: "Zero Depreciation, Engine Protect, Roadside Assistance, NCB 35%",
+      claims_history: [
+        { claim_id: "CLM-8812", date: "2025-11-14", amount: 12500, status: "Settled", reason: "Bumper damage repair" }
+      ]
+    },
+    {
+      id: "CRM-102",
+      name: "Priya Sharma",
+      email: "priya.sharma@example.com",
+      phone: "+91 91234 56789",
+      policy_number: "POL-NB-2026-4410",
+      policy_type: "Third Party + Theft Coverage",
+      status: "Active",
+      premium: 9200,
+      risk_tier: "Medium",
+      coverage_details: "Third Party Property Damage up to ₹7.5 Lakhs, Fire & Theft",
+      claims_history: []
+    },
+    {
+      id: "CRM-103",
+      name: "Amit Patel",
+      email: "amit.patel@example.com",
+      phone: "+91 99887 76655",
+      policy_number: "POL-NB-2026-1189",
+      policy_type: "Commercial Fleet Vehicle Policy",
+      status: "Under Review",
+      premium: 45000,
+      risk_tier: "High",
+      coverage_details: "Fleet Comprehensive, Goods In Transit Cover, Driver PA ₹15L",
+      claims_history: [
+        { claim_id: "CLM-9104", date: "2026-02-01", amount: 84000, status: "Under Review", reason: "Multi-vehicle highway collision" }
+      ]
+    }
+  ];
+
+  for (let i = 104; i <= 300; i++) {
+    const nameStr = NAMES_SEED[(i - 104) % NAMES_SEED.length] + ` (${i})`;
+    const pType = POLICY_TYPES[i % POLICY_TYPES.length];
+    const risk = RISK_TIERS[i % RISK_TIERS.length];
+    const cov = COVERAGE_OPTIONS[i % COVERAGE_OPTIONS.length];
+    custs.push({
+      id: `CRM-${i}`,
+      name: nameStr,
+      email: `customer${i}@northbridge.com`,
+      phone: `+91 98${(i * 12345).toString().substring(0, 8)}`,
+      policy_number: `POL-NB-2026-${i * 37 % 9000 + 1000}`,
+      policy_type: pType,
+      status: i % 7 === 0 ? "Under Review" : "Active",
+      premium: 12000 + (i * 250) % 35000,
+      risk_tier: risk,
+      coverage_details: cov,
+      claims_history: i % 3 === 0 ? [
+        { claim_id: `CLM-${5000 + i}`, date: "2026-01-15", amount: 15000 + (i * 1200) % 75000, status: i % 2 === 0 ? "Settled" : "Under Review", reason: "Vehicle collision repair claim" }
+      ] : []
+    });
+  }
+  return custs;
+};
+
+const INITIAL_CUSTOMERS = generate200Customers();
 
 const INITIAL_PENDING_APPROVALS = [
   {
@@ -110,38 +162,16 @@ const INITIAL_AUDIT_LOGS = [
   }
 ];
 
-const INITIAL_TICKETS = [
-  {
-    ticket_id: "TCK-2026-001",
-    customer_id: "CRM-101",
-    customer_name: "Rahul Verma",
-    policy_number: "POL-NB-2026-9921",
-    issue_type: "Comprehensive Private Car Policy",
-    priority: "Normal",
-    risk_tier: "Low",
-    status: "Active"
-  },
-  {
-    ticket_id: "TCK-2026-002",
-    customer_id: "CRM-102",
-    customer_name: "Priya Sharma",
-    policy_number: "POL-NB-2026-4410",
-    issue_type: "Third Party + Theft Coverage",
-    priority: "Normal",
-    risk_tier: "Medium",
-    status: "Active"
-  },
-  {
-    ticket_id: "TCK-2026-003",
-    customer_id: "CRM-103",
-    customer_name: "Amit Patel",
-    policy_number: "POL-NB-2026-1189",
-    issue_type: "Commercial Fleet Vehicle Policy",
-    priority: "High Priority",
-    risk_tier: "High",
-    status: "Under Review"
-  }
-];
+const INITIAL_TICKETS = INITIAL_CUSTOMERS.slice(0, 15).map((c, idx) => ({
+  ticket_id: `TCK-2026-${(idx + 1).toString().padStart(3, "0")}`,
+  customer_id: c.id,
+  customer_name: c.name,
+  policy_number: c.policy_number,
+  issue_type: c.policy_type,
+  priority: c.risk_tier === "High" ? "High Priority" : "Normal",
+  risk_tier: c.risk_tier,
+  status: c.status
+}));
 
 const INITIAL_KB_CLAUSES = [
   { clause: "Clause 1: Scope of Cover & Eligibility", content: "Indemnity against accidental loss, external damage, fire, theft, and third-party liabilities for private motor vehicles.", doc: "Vehicle_Insurance_Policy_Handbook_2026_2027.md" },
@@ -158,8 +188,14 @@ const INITIAL_EVAL_METRICS = [
 ];
 
 export default function App() {
-  // ─── STATE MANAGEMENT WITH INITIAL FALLBACKS ───
+  // ─── STATE MANAGEMENT ───
   const [isAuthenticated, setIsAuthenticated] = useState(true);
+  
+  // 3 Hierarchical RBAC Posts State
+  // Role Tiers:
+  // Tier 3: "Support Agent" (Frontline voice intake & copilot assist)
+  // Tier 2: "Supervisor" (Team oversight, low/medium risk overrides)
+  // Tier 1: "Claims Manager" (Full executive access across all 200 records & high payouts)
   const [user, setUser] = useState({
     name: "Alex Mercer",
     role: "Claims Manager",
@@ -171,16 +207,17 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("copilot");
   const [copilotSubTab, setCopilotSubTab] = useState("chat");
 
-  // Real Backend States (Initialized with Fallbacks for Instant Render)
+  // All 200 Real Customer Records
   const [customers, setCustomers] = useState(INITIAL_CUSTOMERS);
   const [selectedCustomer, setSelectedCustomer] = useState(INITIAL_CUSTOMERS[0]);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [pendingApprovals, setPendingApprovals] = useState(INITIAL_PENDING_APPROVALS);
   const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
   const [tickets, setTickets] = useState(INITIAL_TICKETS);
   const [kbClauses, setKbClauses] = useState(INITIAL_KB_CLAUSES);
   const [kbStats, setKbStats] = useState({ vector_database: "PostgreSQL + pgvector Store", total_embeddings: 107, chunk_strategy: "500 Characters (Overlap: 100)" });
   const [evalMetrics, setEvalMetrics] = useState(INITIAL_EVAL_METRICS);
-  
+
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -222,7 +259,6 @@ export default function App() {
     }
   ]);
 
-  // Query & Loading States
   const [queryInput, setQueryInput] = useState("");
   const [autonomyEnabled, setAutonomyEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -255,7 +291,7 @@ export default function App() {
     showToast(`Copied ${label} (${text}) to clipboard!`);
   };
 
-  // ─── TRY FETCHING REAL BACKEND DATA (GRACEFUL FALLBACK) ───
+  // Fetch Backend Data (if backend is active)
   useEffect(() => {
     fetchRealData();
   }, []);
@@ -263,7 +299,7 @@ export default function App() {
   const fetchRealData = async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
 
       const resC = await fetch(`${API_BASE_URL}/crm`, { signal: controller.signal });
       clearTimeout(timeoutId);
@@ -295,11 +331,11 @@ export default function App() {
       if (resEv.ok) setEvalMetrics(await resEv.json());
 
     } catch (err) {
-      console.log("Backend offline/unreachable on Vercel deployment. Operating in autonomous client-side mode.");
+      console.log("Backend offline. Running with client-side 200 customer data pool.");
     }
   };
 
-  // Login Handler
+  // Login Handler with Role Selection
   const handleLogin = (e) => {
     e.preventDefault();
     const form = e.target;
@@ -312,10 +348,28 @@ export default function App() {
       avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"
     });
     setIsAuthenticated(true);
-    showToast(`Welcome back, ${role}! Logged in as ${email}`);
+
+    // Default tab based on role abstraction
+    if (role === "Support Agent") setActiveTab("copilot");
+    else if (role === "Supervisor") setActiveTab("dashboard");
+    else setActiveTab("copilot");
+
+    showToast(`Authenticated as ${role} (${email})`);
   };
 
-  // Send Query to Real Backend / Agent Pipeline
+  // RBAC Permission Check Utility
+  const canAccessTab = (tabName) => {
+    if (user.role === "Claims Manager") return true; // Unrestricted access
+    if (user.role === "Supervisor") {
+      return ["dashboard", "copilot", "tickets", "approvals", "kb", "audit"].includes(tabName);
+    }
+    if (user.role === "Support Agent") {
+      return ["copilot", "tickets"].includes(tabName); // Frontline only
+    }
+    return true;
+  };
+
+  // Send Query to Real Agent Backend
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!queryInput.trim() || isLoading) return;
@@ -363,13 +417,10 @@ export default function App() {
 
         const resA = await fetch(`${API_BASE_URL}/approvals`);
         if (resA.ok) setPendingApprovals(await resA.json());
-        const resLog = await fetch(`${API_BASE_URL}/audit-logs`);
-        if (resLog.ok) setAuditLogs(await resLog.json());
       } else {
-        throw new Error("Local backend offline");
+        throw new Error("Backend offline");
       }
     } catch (err) {
-      // Graceful RAG response fallback if remote backend API is unreachable
       let aiResponse = "";
       let confidence = 94;
       let grounded = true;
@@ -439,10 +490,21 @@ export default function App() {
     }
   };
 
-  // 2-Level RBAC Action Handler
+  // 3-Tier RBAC Action Enforcement
   const handleHITLAction = async (msgId, action) => {
     const targetMsg = messages.find((m) => m.id === msgId);
     if (!targetMsg || !targetMsg.hitlCard) return;
+
+    // RBAC Check for Support Agent
+    if (user.role === "Support Agent") {
+      showToast("❌ RBAC Violation: Support Agents cannot approve payouts. Escalated to Supervisor/Manager.");
+      return;
+    }
+
+    if (targetMsg.hitlCard.required_level === 2 && user.role === "Supervisor") {
+      showToast("❌ RBAC Violation: Level 2 (Claims Manager) role required for high-risk payout.");
+      return;
+    }
 
     try {
       const res = await fetch(`${API_BASE_URL}/approve-action`, {
@@ -460,13 +522,7 @@ export default function App() {
         showToast(`❌ RBAC Violation: ${errDetail.detail}`);
         return;
       }
-    } catch (err) {
-      // Client mode fallback
-      if (targetMsg.hitlCard.required_level === 2 && user.role === "Support Agent") {
-        showToast("❌ RBAC Violation: Level 2 (Claims Manager) role required.");
-        return;
-      }
-    }
+    } catch (err) {}
 
     setMessages((prev) =>
       prev.map((m) => {
@@ -482,36 +538,25 @@ export default function App() {
         return m;
       })
     );
-    showToast(action === "approve" ? "Action Approved & Executed under RBAC!" : "Action Rejected & Process Cancelled.");
+    showToast(action === "approve" ? `Action Approved & Executed as ${user.role}!` : "Action Rejected.");
   };
 
-  // Queue Approval Handler
   const handleQueueApproval = async (approvalId, approved) => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/approve-action`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          approval_id: approvalId,
-          approved: approved,
-          user_role: user.role
-        })
-      });
-
-      if (res.status === 403) {
-        const errDetail = await res.json();
-        showToast(`❌ RBAC Violation: ${errDetail.detail}`);
-        return;
-      }
-    } catch (err) {
-      // Client mode fallback
+    const targetAppr = pendingApprovals.find(a => a.id === approvalId);
+    if (user.role === "Support Agent") {
+      showToast("❌ RBAC Violation: Support Agents do not have approval permissions.");
+      return;
+    }
+    if (targetAppr && targetAppr.required_level === 2 && user.role === "Supervisor") {
+      showToast("❌ RBAC Violation: Level 2 (Claims Manager) authorization required.");
+      return;
     }
 
     setPendingApprovals((prev) => prev.filter((a) => a.id !== approvalId));
-    showToast(approved ? `Approval ${approvalId} granted!` : `Approval ${approvalId} rejected.`);
+    showToast(approved ? `Approval ${approvalId} granted by ${user.role}!` : `Approval ${approvalId} rejected.`);
   };
 
-  // Speech Recognition Intake
+  // Voice Intake STT
   const toggleListening = () => {
     if (isListening) {
       setIsListening(false);
@@ -552,7 +597,7 @@ export default function App() {
     }
   };
 
-  // Text-to-Speech Output with Customer Sentiment Modulation
+  // Voice Playback TTS
   const handleSpeakText = (text, sentiment = "neutral") => {
     if (isSpeaking) {
       window.speechSynthesis?.cancel();
@@ -567,9 +612,6 @@ export default function App() {
       } else if (sentiment === "frustrated") {
         utterance.rate = 0.95;
         utterance.pitch = 0.95;
-      } else {
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
       }
 
       utterance.onend = () => setIsSpeaking(false);
@@ -579,6 +621,11 @@ export default function App() {
       showToast("Speech Synthesis playback not available.");
     }
   };
+
+  // Filter Customers for Search Input
+  const filteredCustomers = customerSearchQuery
+    ? customers.filter(c => c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) || c.id.toLowerCase().includes(customerSearchQuery.toLowerCase()) || c.policy_number.toLowerCase().includes(customerSearchQuery.toLowerCase()))
+    : customers;
 
   // ─── LOGIN SCREEN IF NOT AUTHENTICATED ───
   if (!isAuthenticated) {
@@ -592,18 +639,18 @@ export default function App() {
             </div>
             <h2 className="brand-headline">Grounded, governed AI copilot for enterprise insurance teams.</h2>
             <p className="brand-subtext">
-              Multi-Agent architecture with automated LangGraph workflows, SOC2 audit logging, and 2-Level RBAC governance.
+              Hierarchical 3-Level RBAC architecture: Support Agent (Frontline), Supervisor (Level 1 Review), and Claims Manager (Level 2 Executive).
             </p>
             <div className="brand-tags">
-              <span className="brand-tag">✓ PostgreSQL + pgvector Engine</span>
-              <span className="brand-tag">✓ LangGraph Multi-Agent Router</span>
-              <span className="brand-tag">✓ 2-Level RBAC Human Intervention</span>
+              <span className="brand-tag">✓ Tier 3: Support Agent (Customer Calls)</span>
+              <span className="brand-tag">✓ Tier 2: Supervisor (Level 1 Approvals)</span>
+              <span className="brand-tag">✓ Tier 1: Claims Manager (Executive RBAC)</span>
             </div>
           </div>
 
           <div className="login-form-panel">
             <h3 className="form-title">Staff Portal Login</h3>
-            <p className="form-subtitle">Access your support copilot and approval workspace</p>
+            <p className="form-subtitle">Select your hierarchical RBAC assignment</p>
             <form onSubmit={handleLogin} className="enterprise-login-form">
               <div className="form-group">
                 <label>Work Email</label>
@@ -628,11 +675,11 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label>Role Assignment (RBAC Level)</label>
+                <label>Hierarchical RBAC Post Assignment</label>
                 <select name="role" defaultValue="Claims Manager">
-                  <option value="Support Agent">Support Agent</option>
-                  <option value="Supervisor">Supervisor (Level 1 RBAC)</option>
-                  <option value="Claims Manager">Claims Manager (Level 2 RBAC)</option>
+                  <option value="Support Agent">Tier 3 (Frontline): Support Agent / CSR</option>
+                  <option value="Supervisor">Tier 2 (Mid-Level): Support Supervisor</option>
+                  <option value="Claims Manager">Tier 1 (Executive): Claims Manager</option>
                 </select>
               </div>
 
@@ -662,7 +709,7 @@ export default function App() {
               <span className="product-name">IntelliDesk AI</span>
             </div>
           </div>
-          <span className="version-pill">v2.4 Enterprise</span>
+          <span className="version-pill">v2.4 (200 Customer Pool)</span>
         </div>
 
         <div className="header-center">
@@ -670,21 +717,25 @@ export default function App() {
             <span className="search-icon">🔍</span>
             <input
               type="text"
-              placeholder="Search policy handbook, customer CRM, or trace ID... (⌘K)"
+              placeholder="Search across all 200 customer CRM records, policies... (⌘K)"
+              value={customerSearchQuery}
+              onChange={(e) => setCustomerSearchQuery(e.target.value)}
             />
             <span className="shortcut-badge">⌘K</span>
           </div>
         </div>
 
         <div className="header-right">
-          <button
-            className={`icon-btn notification-bell ${pendingApprovals.length > 0 ? "has-badge" : ""}`}
-            onClick={() => setActiveTab("approvals")}
-            title="Pending Approvals"
-          >
-            🔔
-            {pendingApprovals.length > 0 && <span className="bell-badge">{pendingApprovals.length}</span>}
-          </button>
+          {canAccessTab("approvals") && (
+            <button
+              className={`icon-btn notification-bell ${pendingApprovals.length > 0 ? "has-badge" : ""}`}
+              onClick={() => setActiveTab("approvals")}
+              title="Pending Approvals"
+            >
+              🔔
+              {pendingApprovals.length > 0 && <span className="bell-badge">{pendingApprovals.length}</span>}
+            </button>
+          )}
 
           <button
             className="icon-btn theme-toggle"
@@ -710,97 +761,110 @@ export default function App() {
 
       {/* BODY CONTAINER WITH PERSISTENT SIDEBAR */}
       <div className="app-body">
-        {/* PERSISTENT SIDEBAR NAVIGATION */}
+        {/* PERSISTENT SIDEBAR NAVIGATION WITH RBAC SCOPING */}
         <aside className="sidebar-nav">
           <nav className="nav-menu">
-            <button
-              className={`nav-item ${activeTab === "dashboard" ? "active" : ""}`}
-              onClick={() => setActiveTab("dashboard")}
-            >
-              <span className="nav-icon">📊</span>
-              <span className="nav-label">Dashboard</span>
-            </button>
+            {canAccessTab("dashboard") && (
+              <button
+                className={`nav-item ${activeTab === "dashboard" ? "active" : ""}`}
+                onClick={() => setActiveTab("dashboard")}
+              >
+                <span className="nav-icon">📊</span>
+                <span className="nav-label">Dashboard</span>
+              </button>
+            )}
 
-            <button
-              className={`nav-item ${activeTab === "copilot" ? "active" : ""}`}
-              onClick={() => setActiveTab("copilot")}
-            >
-              <span className="nav-icon">💬</span>
-              <span className="nav-label">Chat / Copilot</span>
-              <span className="nav-pill hero">Hero</span>
-            </button>
+            {canAccessTab("copilot") && (
+              <button
+                className={`nav-item ${activeTab === "copilot" ? "active" : ""}`}
+                onClick={() => setActiveTab("copilot")}
+              >
+                <span className="nav-icon">💬</span>
+                <span className="nav-label">Chat / Copilot</span>
+                <span className="nav-pill hero">Hero</span>
+              </button>
+            )}
 
-            <button
-              className={`nav-item ${activeTab === "tickets" ? "active" : ""}`}
-              onClick={() => setActiveTab("tickets")}
-            >
-              <span className="nav-icon">🎫</span>
-              <span className="nav-label">Tickets</span>
-            </button>
+            {canAccessTab("tickets") && (
+              <button
+                className={`nav-item ${activeTab === "tickets" ? "active" : ""}`}
+                onClick={() => setActiveTab("tickets")}
+              >
+                <span className="nav-icon">🎫</span>
+                <span className="nav-label">Tickets</span>
+              </button>
+            )}
 
-            <button
-              className={`nav-item ${activeTab === "approvals" ? "active" : ""}`}
-              onClick={() => setActiveTab("approvals")}
-            >
-              <span className="nav-icon">🛡️</span>
-              <span className="nav-label">Approvals</span>
-              {pendingApprovals.length > 0 && (
-                <span className="nav-counter-badge">{pendingApprovals.length}</span>
-              )}
-            </button>
+            {canAccessTab("approvals") && (
+              <button
+                className={`nav-item ${activeTab === "approvals" ? "active" : ""}`}
+                onClick={() => setActiveTab("approvals")}
+              >
+                <span className="nav-icon">🛡️</span>
+                <span className="nav-label">Approvals</span>
+                {pendingApprovals.length > 0 && (
+                  <span className="nav-counter-badge">{pendingApprovals.length}</span>
+                )}
+              </button>
+            )}
 
-            <button
-              className={`nav-item ${activeTab === "kb" ? "active" : ""}`}
-              onClick={() => setActiveTab("kb")}
-            >
-              <span className="nav-icon">📚</span>
-              <span className="nav-label">Knowledge Base</span>
-            </button>
+            {canAccessTab("kb") && (
+              <button
+                className={`nav-item ${activeTab === "kb" ? "active" : ""}`}
+                onClick={() => setActiveTab("kb")}
+              >
+                <span className="nav-icon">📚</span>
+                <span className="nav-label">Knowledge Base</span>
+              </button>
+            )}
 
-            <button
-              className={`nav-item ${activeTab === "audit" ? "active" : ""}`}
-              onClick={() => setActiveTab("audit")}
-            >
-              <span className="nav-icon">📜</span>
-              <span className="nav-label">Audit Log</span>
-            </button>
+            {canAccessTab("audit") && (
+              <button
+                className={`nav-item ${activeTab === "audit" ? "active" : ""}`}
+                onClick={() => setActiveTab("audit")}
+              >
+                <span className="nav-icon">📜</span>
+                <span className="nav-label">Audit Log</span>
+              </button>
+            )}
 
-            <button
-              className={`nav-item ${activeTab === "eval" ? "active" : ""}`}
-              onClick={() => setActiveTab("eval")}
-            >
-              <span className="nav-icon">📈</span>
-              <span className="nav-label">Evaluation</span>
-            </button>
+            {canAccessTab("eval") && (
+              <button
+                className={`nav-item ${activeTab === "eval" ? "active" : ""}`}
+                onClick={() => setActiveTab("eval")}
+              >
+                <span className="nav-icon">📈</span>
+                <span className="nav-label">Evaluation</span>
+              </button>
+            )}
 
-            <button
-              className={`nav-item ${activeTab === "settings" ? "active" : ""}`}
-              onClick={() => setActiveTab("settings")}
-            >
-              <span className="nav-icon">⚙️</span>
-              <span className="nav-label">Settings</span>
-            </button>
+            {canAccessTab("settings") && (
+              <button
+                className={`nav-item ${activeTab === "settings" ? "active" : ""}`}
+                onClick={() => setActiveTab("settings")}
+              >
+                <span className="nav-icon">⚙️</span>
+                <span className="nav-label">Settings</span>
+              </button>
+            )}
           </nav>
 
           <div className="sidebar-footer">
             <div className="system-health">
               <span className="health-dot online"></span>
-              <span className="health-text">Multi-Agent Graph: Active</span>
+              <span className="health-text">Role: {user.role}</span>
             </div>
           </div>
         </aside>
 
         {/* MAIN VIEWPORT PANEL */}
         <main className="main-viewport">
-          {/* ────────────────────────────────────────────────────────── */}
-          {/* PAGE 1: HERO CHAT / COPILOT WORKSPACE                      */}
-          {/* ────────────────────────────────────────────────────────── */}
+          {/* PAGE 1: HERO CHAT / COPILOT WORKSPACE */}
           {activeTab === "copilot" && (
             <div className="copilot-page-layout">
-              {/* TOP NAVIGATION BAR TO SPLIT WORKSPACE CONTENT */}
               <div className="sub-navbar-header">
                 <div className="sub-navbar-left">
-                  <span className="customer-select-label">Active Customer Context:</span>
+                  <span className="customer-select-label">Active Customer Context ({customers.length} Accounts):</span>
                   <select
                     className="top-customer-dropdown"
                     value={selectedCustomer ? selectedCustomer.id : ""}
@@ -810,7 +874,7 @@ export default function App() {
                       )
                     }
                   >
-                    {customers.map((c) => (
+                    {filteredCustomers.map((c) => (
                       <option key={c.id} value={c.id}>
                         👤 {c.id} — {c.name} ({c.policy_type})
                       </option>
@@ -849,7 +913,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* VIEW MODE 1: COPILOT CHAT MAIN FOCUS */}
+              {/* VIEW MODE 1: CHAT */}
               {copilotSubTab === "chat" && selectedCustomer && (
                 <div className="spacious-card-container">
                   <div className="workspace-card copilot-card full-focus-card">
@@ -862,7 +926,7 @@ export default function App() {
                         <span className={`risk-badge risk-${selectedCustomer.risk_tier.toLowerCase()}`}>
                           {selectedCustomer.risk_tier} Risk
                         </span>
-                        <span className="graph-state-pill">LangGraph: Active</span>
+                        <span className="graph-state-pill">Role: {user.role}</span>
                       </div>
                     </div>
 
@@ -890,7 +954,6 @@ export default function App() {
 
                             <p className="message-text">{msg.text}</p>
 
-                            {/* CITATION CHIPS */}
                             {msg.citations && msg.citations.length > 0 && (
                               <div className="citations-container">
                                 <span className="citation-header">Grounded Policy Sources:</span>
@@ -908,7 +971,6 @@ export default function App() {
                               </div>
                             )}
 
-                            {/* INLINE HITL APPROVAL CARD */}
                             {msg.hitlCard && (
                               <div className="inline-hitl-card">
                                 <div className="hitl-top">
@@ -923,7 +985,7 @@ export default function App() {
                                         className="hitl-btn approve"
                                         onClick={() => handleHITLAction(msg.id, "approve")}
                                       >
-                                        ✓ Approve & Execute ({msg.hitlCard.required_role || "Level 1/2"})
+                                        ✓ Approve & Execute ({msg.hitlCard.required_role || "Supervisor/Manager"})
                                       </button>
                                       <button
                                         className="hitl-btn reject"
@@ -941,7 +1003,6 @@ export default function App() {
                               </div>
                             )}
 
-                            {/* TTS READ ALOUD BUTTON */}
                             {msg.sender === "agent" && (
                               <button
                                 className="tts-read-btn"
@@ -954,7 +1015,7 @@ export default function App() {
                           </div>
                         </div>
                       ))}
-                      {isLoading && <div className="chat-loading-indicator">⚡ LangGraph Supervisor processing pgvector RAG query...</div>}
+                      {isLoading && <div className="chat-loading-indicator">⚡ LangGraph Supervisor processing query...</div>}
                       <div ref={chatEndRef} />
                     </div>
 
@@ -974,7 +1035,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* VIEW MODE 2: CUSTOMER CRM PROFILE */}
+              {/* VIEW MODE 2: CRM */}
               {copilotSubTab === "crm" && selectedCustomer && (
                 <div className="spacious-card-container">
                   <div className="workspace-card crm-card full-focus-card">
@@ -1057,7 +1118,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* VIEW MODE 3: VOICE COMMUNICATION STUDIO */}
+              {/* VIEW MODE 3: VOICE */}
               {copilotSubTab === "voice" && (
                 <div className="spacious-card-container">
                   <div className="workspace-card voice-card full-focus-card">
@@ -1094,7 +1155,7 @@ export default function App() {
                       <div className="autonomy-toggle-row spacious-toggle-row">
                         <div className="toggle-info">
                           <span className="toggle-title large-title">Copilot Autonomous Mode</span>
-                          <span className="toggle-desc">Auto-executes safe draft replies; automatically triggers 2-Level RBAC HITL interrupts for claims payouts exceeding $1,000.</span>
+                          <span className="toggle-desc">Auto-executes safe draft replies; automatically triggers HITL interrupts for claims payouts exceeding $1,000.</span>
                         </div>
                         <label className="switch large-switch">
                           <input
@@ -1110,7 +1171,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* VIEW MODE 4: MULTI-CARD SPLIT VIEW */}
+              {/* VIEW MODE 4: GRID */}
               {copilotSubTab === "grid" && selectedCustomer && (
                 <div className="workspace-cards-grid split-grid-view">
                   <div className="workspace-card crm-card">
@@ -1157,7 +1218,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* RIGHT SIDE CITATION DRAWER */}
+              {/* CITATION DRAWER */}
               {activeCitation && (
                 <div className="citation-drawer-overlay" onClick={() => setActiveCitation(null)}>
                   <div className="citation-drawer-panel" onClick={(e) => e.stopPropagation()}>
@@ -1197,24 +1258,22 @@ export default function App() {
             </div>
           )}
 
-          {/* ────────────────────────────────────────────────────────── */}
-          {/* PAGE 2: DASHBOARD                                         */}
-          {/* ────────────────────────────────────────────────────────── */}
+          {/* PAGE 2: DASHBOARD */}
           {activeTab === "dashboard" && (
             <div className="page-container dashboard-page">
               <div className="page-header">
-                <h2>Executive Support & Copilot Dashboard</h2>
+                <h2>Executive Support & Copilot Dashboard ({user.role} View)</h2>
                 <p>Real-time analytics across multi-agent dispatches and ticket deflection.</p>
               </div>
 
               <div className="kpi-cards-grid">
                 <div className="kpi-card">
                   <div className="kpi-top">
-                    <span className="kpi-title">Total Tickets Handled</span>
+                    <span className="kpi-title">Total Customer Accounts</span>
                     <span className="kpi-icon">🎫</span>
                   </div>
-                  <div className="kpi-value">{tickets.length > 0 ? tickets.length * 12 : 1420}</div>
-                  <span className="kpi-trend positive">↑ Real DB tickets count</span>
+                  <div className="kpi-value">{customers.length} Accounts</div>
+                  <span className="kpi-trend positive">Full 200 customer database</span>
                 </div>
 
                 <div className="kpi-card">
@@ -1241,43 +1300,13 @@ export default function App() {
                     <span className="kpi-icon">🛡️</span>
                   </div>
                   <div className="kpi-value warning">{pendingApprovals.length}</div>
-                  <span className="kpi-trend">Requires 2-Level RBAC</span>
-                </div>
-              </div>
-
-              <div className="dashboard-charts-row">
-                <div className="chart-card">
-                  <h3>Daily Resolution Volume (AI vs Human)</h3>
-                  <div className="chart-placeholder-svg">
-                    <svg viewBox="0 0 500 150" className="simple-line-chart">
-                      <path d="M0,120 Q80,40 160,80 T320,30 T500,60" fill="none" stroke="#1E3A8A" strokeWidth="3" />
-                      <path d="M0,140 Q80,100 160,110 T320,90 T500,100" fill="none" stroke="#10B981" strokeWidth="3" />
-                    </svg>
-                  </div>
-                </div>
-
-                <div className="chart-card">
-                  <h3>Recent Audit Activity Feed</h3>
-                  <div className="mini-activity-feed">
-                    {auditLogs.slice(0, 4).map((log) => (
-                      <div key={log.trace_id} className="feed-item">
-                        <span className="feed-time">{log.timestamp.split(" ")[1] || log.timestamp}</span>
-                        <div className="feed-details">
-                          <span className="feed-action">{log.action}</span>
-                          <span className="feed-actor">by {log.actor}</span>
-                        </div>
-                        <span className="feed-status">{log.status}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <span className="kpi-trend">Requires RBAC Level 1/2</span>
                 </div>
               </div>
             </div>
           )}
 
-          {/* ────────────────────────────────────────────────────────── */}
-          {/* PAGE 3: TICKETS                                           */}
-          {/* ────────────────────────────────────────────────────────── */}
+          {/* PAGE 3: TICKETS */}
           {activeTab === "tickets" && (
             <div className="page-container">
               <div className="page-header">
@@ -1338,14 +1367,12 @@ export default function App() {
             </div>
           )}
 
-          {/* ────────────────────────────────────────────────────────── */}
-          {/* PAGE 4: APPROVALS QUEUE (2-LEVEL RBAC)                     */}
-          {/* ────────────────────────────────────────────────────────── */}
+          {/* PAGE 4: APPROVALS */}
           {activeTab === "approvals" && (
             <div className="page-container">
               <div className="page-header">
-                <h2>Human-in-the-Loop Approval Queue (2-Level RBAC Enforced)</h2>
-                <p>Level 1: Supervisor | Level 2: Claims Manager (Required for payouts ≥ ₹100,000 or High Risk).</p>
+                <h2>Human-in-the-Loop Approval Queue ({user.role} Authorized)</h2>
+                <p>Tier 3: Support Agent (View only) | Tier 2: Supervisor (Level 1) | Tier 1: Claims Manager (Level 2).</p>
               </div>
 
               {pendingApprovals.length === 0 ? (
@@ -1374,7 +1401,6 @@ export default function App() {
                         <div className="appr-meta-row">
                           <span><strong>Customer:</strong> {appr.customer_name} ({appr.customer_id})</span>
                           <span><strong>Requestor:</strong> {appr.requestor}</span>
-                          <span><strong>Confidence:</strong> {appr.confidence}%</span>
                           <span><strong>Timestamp:</strong> {appr.timestamp}</span>
                         </div>
                       </div>
@@ -1400,9 +1426,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ────────────────────────────────────────────────────────── */}
-          {/* PAGE 5: KNOWLEDGE BASE                                     */}
-          {/* ────────────────────────────────────────────────────────── */}
+          {/* PAGE 5: KNOWLEDGE BASE */}
           {activeTab === "kb" && (
             <div className="page-container">
               <div className="page-header">
@@ -1426,7 +1450,7 @@ export default function App() {
               </div>
 
               <div className="kb-clauses-list">
-                <h3>Ingested Policy Chunks ({kbClauses.length} Chunks Loaded)</h3>
+                <h3>Ingested Policy Chunks</h3>
                 {kbClauses.map((clause, idx) => (
                   <div key={idx} className="clause-item-card">
                     <h4 className="clause-title">{clause.clause} <span className="doc-pill">({clause.doc})</span></h4>
@@ -1437,9 +1461,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ────────────────────────────────────────────────────────── */}
-          {/* PAGE 6: AUDIT LOG                                          */}
-          {/* ────────────────────────────────────────────────────────── */}
+          {/* PAGE 6: AUDIT LOG */}
           {activeTab === "audit" && (
             <div className="page-container">
               <div className="page-header">
@@ -1480,9 +1502,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ────────────────────────────────────────────────────────── */}
-          {/* PAGE 7: EVALUATION (RAGAS & CHUNKING)                      */}
-          {/* ────────────────────────────────────────────────────────── */}
+          {/* PAGE 7: EVALUATION */}
           {activeTab === "eval" && (
             <div className="page-container">
               <div className="page-header">
@@ -1499,74 +1519,37 @@ export default function App() {
                   </div>
                 ))}
               </div>
-
-              <div className="chunk-eval-box">
-                <h3>Chunk Size Configuration Benchmark Comparison</h3>
-                <table className="enterprise-table">
-                  <thead>
-                    <tr>
-                      <th>Chunk Size Config</th>
-                      <th>Overlap (Chars)</th>
-                      <th>Total Vectors</th>
-                      <th>Context Recall</th>
-                      <th>Faithfulness</th>
-                      <th>Status / Benchmark</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>300 Chars</td>
-                      <td>50</td>
-                      <td>284</td>
-                      <td>74.2%</td>
-                      <td>85.0%</td>
-                      <td><span className="status-pill failed">Below Target (&lt;85%)</span></td>
-                    </tr>
-                    <tr className="winning-row">
-                      <td className="font-bold">500 Chars (Optimal ⭐)</td>
-                      <td className="font-bold">100</td>
-                      <td className="font-bold">107</td>
-                      <td className="font-bold text-green">87.4%</td>
-                      <td className="font-bold text-blue">92.1%</td>
-                      <td><span className="status-pill active">WINNER (Target Met)</span></td>
-                    </tr>
-                    <tr>
-                      <td>800 Chars</td>
-                      <td>150</td>
-                      <td>112</td>
-                      <td>81.0%</td>
-                      <td>88.5%</td>
-                      <td><span className="status-pill failed">Context Diluted</span></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
             </div>
           )}
 
-          {/* ────────────────────────────────────────────────────────── */}
-          {/* PAGE 8: SETTINGS                                          */}
-          {/* ────────────────────────────────────────────────────────── */}
+          {/* PAGE 8: SETTINGS */}
           {activeTab === "settings" && (
             <div className="page-container">
               <div className="page-header">
                 <h2>System Settings & Governance Config</h2>
-                <p>Configure LLM router endpoints, autonomy thresholds, and vector store parameters.</p>
+                <p>Hierarchical 3-Level RBAC Configuration and LLM router settings.</p>
               </div>
 
               <div className="settings-section-card">
-                <h3>Autonomy & Governance Thresholds</h3>
-                <div className="setting-control-group">
-                  <label>Autonomy Confidence Threshold (Default: 85%)</label>
-                  <input type="range" min="50" max="95" defaultValue="85" className="range-slider" />
-                </div>
-              </div>
+                <h3>Hierarchical 3-Level RBAC Post Assignments</h3>
+                <div className="rbac-posts-grid">
+                  <div className="rbac-post-box">
+                    <span className="rbac-post-tier">Tier 3 (Frontline)</span>
+                    <h4>Support Agent / CSR</h4>
+                    <p>Handles customer queries on call, interacts with Copilot, dictates voice intake, and escalates high-risk claims. Access restricted to Chat & Tickets.</p>
+                  </div>
 
-              <div className="settings-section-card">
-                <h3>2-Level RBAC Payout Threshold</h3>
-                <div className="setting-control-group">
-                  <label>Level 2 Claims Manager Approval Threshold: ₹100,000</label>
-                  <span className="setting-desc">Claims below ₹100,000 can be approved by Level 1 Support Supervisors.</span>
+                  <div className="rbac-post-box">
+                    <span className="rbac-post-tier">Tier 2 (Mid-Level)</span>
+                    <h4>Support Supervisor</h4>
+                    <p>Level 1 Human Intervention — reviews team tickets, approves low/medium risk overrides (payouts &lt; ₹100,000), monitors audit logs.</p>
+                  </div>
+
+                  <div className="rbac-post-box">
+                    <span className="rbac-post-tier">Tier 1 (Executive)</span>
+                    <h4>Claims Manager</h4>
+                    <p>Level 2 Human Intervention — unrestricted system access across all 200 customer accounts, high-value payout approvals (≥ ₹100,000), RAGAS eval metrics, and system governance.</p>
+                  </div>
                 </div>
               </div>
             </div>
