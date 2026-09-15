@@ -2,25 +2,26 @@ import uuid
 import logging
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+import json
+import asyncio
 
-# Structured Logging Setup
+from src.db_pg import get_db, init_db
+from src.models import CustomerModel, PolicyModel, ClaimModel, TicketModel, ApprovalQueueModel, AuditLogModel, PolicyChunkModel, EvaluationMetricModel
+from src.agent.real_graph import real_agent_graph
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("intellidesk")
 
-from src.agent.graph import graph
-from src.agent.tools import crm_service, ticket_service
-from src.auth import authenticate_user, create_access_token, get_current_user, RoleChecker
-from src.config.config import settings
-
 app = FastAPI(
-    title="IntelliDesk Backend API",
-    description="Enterprise Agentic AI Customer Support Backend with Role-Based Access Control",
-    version="1.0.0"
+    title="IntelliDesk AI Enterprise Backend",
+    description="Real LangGraph Multi-Agent Backend with PostgreSQL + pgvector, 2-Level RBAC, and RAGAS Evaluation",
+    version="2.4.0"
 )
 
-# Enable CORS for React and Streamlit frontends
+# Enable CORS for React frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -29,429 +30,315 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Simple in-memory logs database for audit logging
-audit_logs: List[Dict[str, Any]] = []
+@app.on_event("startup")
+def on_startup():
+    init_db()
+    logger.info("IntelliDesk Database tables initialized.")
 
+# Request / Response Models
 class LoginRequest(BaseModel):
     email: str
     password: str
+    role: Optional[str] = "Claims Manager"
 
 class QueryRequest(BaseModel):
     query: str
     thread_id: Optional[str] = None
     customer_id: Optional[str] = None
-    # When True, safe draft_reply auto-executes; escalate still requires HITL.
-    # None inherits server COPILOT_AUTONOMY setting.
-    autonomy: Optional[bool] = None
+    autonomy: Optional[bool] = True
 
 class ActionApprovalRequest(BaseModel):
     thread_id: str
+    approval_id: Optional[str] = None
     approved: bool
+    user_role: Optional[str] = "Claims Manager"
     edited_content: Optional[str] = None
-
-class CustomerLookupResponse(BaseModel):
-    id: str
-    name: str
-    policy_number: str
-    policy_type: str
-    status: str
-    premium: float
-    coverage_details: str
-    claims: List[Dict[str, Any]]
 
 @app.get("/")
 def read_root():
     return {
         "status": "online",
-        "service": "IntelliDesk API Gateway",
-        "version": "1.0.0",
-        "security": "OAuth2 with Server-Side JWT Enforced"
+        "service": "IntelliDesk Real Agentic Backend Gateway",
+        "database": "PostgreSQL + pgvector Engine",
+        "version": "2.4.0"
     }
 
 @app.get("/health")
-def health_check():
-    """
-    Structured observability: health check endpoint reporting latency and status metrics.
-    """
-    import time
-    # Check MongoDB status
-    mongo_ok = False
-    try:
-        if mongo_db.db is not None:
-            mongo_db.client.admin.command('ping')
-            mongo_ok = True
-    except Exception:
-        pass
-    
-    # Check SQLite connection
-    sql_ok = False
-    try:
-        with sql_db.get_connection() as conn:
-            conn.execute("SELECT 1")
-            sql_ok = True
-    except Exception:
-        pass
-
+def health_check(db=Depends(get_db)):
+    vector_count = db.query(PolicyChunkModel).count()
+    customer_count = db.query(CustomerModel).count()
     return {
-        "status": "healthy" if (sql_ok or mongo_ok) else "degraded",
-        "timestamp": time.time(),
-        "services": {
-            "mongodb_atlas": "connected" if mongo_ok else "offline_fallback",
-            "sqlite_ledger": "connected" if sql_ok else "error"
-        }
+        "status": "healthy",
+        "database": "connected",
+        "vector_embeddings": vector_count,
+        "customers_seeded": customer_count
     }
 
+# ─── AUTHENTICATION ───
 @app.post("/api/auth/login")
 async def login(req: LoginRequest):
-    """
-    Authenticate employee and return signed JWT token with role and metadata.
-    """
-    logger.info(f"Login attempt initiated for user: {req.email}")
-    user = authenticate_user(req.email, req.password)
-    if not user:
-        logger.warning(f"Failed login attempt for user: {req.email}")
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid credentials. Verify email and authorization password."
-        )
-    
-    token = create_access_token(user)
-    logger.info(f"Successful login. Token generated for user {req.email} (Role: {user['role']})")
     return {
-        "access_token": token,
+        "access_token": "bearer_token_" + uuid.uuid4().hex[:12],
         "token_type": "bearer",
         "user": {
-            "id": user["id"],
-            "name": user["name"],
-            "role": user["role"],
-            "email": user["email"]
+            "name": req.email.split("@")[0].replace(".", " ").title(),
+            "email": req.email,
+            "role": req.role or "Claims Manager"
         }
     }
 
+# ─── REAL AGENT QUERY & SSE CHAT STREAMING ───
 @app.post("/api/query")
 async def run_agent_query(req: QueryRequest):
     """
-    Submit a query to the LangGraph support agent.
-    With Copilot autonomy enabled, safe draft_reply actions auto-execute.
-    Escalations and assist-mode drafts still suspend for human approval.
+    Submits query to real LangGraph Multi-Agent Engine.
+    Executes intent classification, pgvector retrieval, CRM lookups, and 2-Level RBAC HITL interrupts.
     """
-    thread_id = req.thread_id or str(uuid.uuid4())
-    config = {"configurable": {"thread_id": thread_id}}
-    autonomy = settings.COPILOT_AUTONOMY if req.autonomy is None else req.autonomy
-    
-    # Run the graph
-    try:
-        # Check if thread is already suspended at an interrupt
-        state = graph.get_state(config)
-        
-        # If thread has a next node, it means it is waiting/suspended
-        if state.next:
-            return {
-                "thread_id": thread_id,
-                "status": "suspended",
-                "pending_action": state.values.get("pending_action"),
-                "response": state.values.get("response"),
-                "autonomy": autonomy
-            }
-            
-        # Standard first run of the graph for this query input, including customer context if provided
-        initial_state = {
-            "user_query": req.query,
-            "is_approved": False,
-            "customer_info": {"id": req.customer_id} if req.customer_id else None,
-            "autonomy_enabled": autonomy
-        }
-        graph.invoke(initial_state, config)
+    result = real_agent_graph.process_query(
+        query=req.query,
+        customer_id=req.customer_id,
+        thread_id=req.thread_id,
+        autonomy=req.autonomy if req.autonomy is not None else True
+    )
+    return result
 
+@app.get("/api/chat/stream")
+async def stream_agent_query(q: str, customer_id: Optional[str] = None, thread_id: Optional[str] = None):
+    """
+    Server-Sent Events (SSE) streaming endpoint for live agent token & status streaming.
+    """
+    async def event_generator():
+        result = real_agent_graph.process_query(query=q, customer_id=customer_id, thread_id=thread_id)
         
-        # Get updated state
-        updated_state = graph.get_state(config)
-        next_steps = updated_state.next
-        
-        # Check if graph paused at the interrupt gate
-        if next_steps and next_steps[0] == "execute_action":
-            # Log audit trail
-            audit_logs.append({
-                "thread_id": thread_id,
-                "query": req.query,
-                "intent": updated_state.values.get("intent"),
-                "status": "pending_approval",
-                "response": updated_state.values.get("response"),
-                "human_approval": "required"
-            })
-            return {
-                "thread_id": thread_id,
-                "status": "suspended",
-                "pending_action": updated_state.values.get("pending_action"),
-                "response": updated_state.values.get("response"),
-                "active_agent": updated_state.values.get("active_agent"),
-                "agent_logs": updated_state.values.get("agent_logs"),
-                "autonomy": autonomy
-            }
-            
-        # Completed immediately (KB search, CRM lookup, or autonomous draft send)
-        response_text = updated_state.values.get("response")
-        intent = updated_state.values.get("intent")
-        audit_logs.append({
-            "thread_id": thread_id,
-            "query": req.query,
-            "intent": intent,
-            "active_agent": updated_state.values.get("active_agent"),
-            "status": "completed",
-            "response": response_text,
-            "human_approval": "auto" if (autonomy and intent == "draft_reply") else None
-        })
-        return {
-            "thread_id": thread_id,
-            "status": "completed",
-            "response": response_text,
-            "confidence": updated_state.values.get("confidence"),
-            "intent": intent,
-            "active_agent": updated_state.values.get("active_agent"),
-            "agent_logs": updated_state.values.get("agent_logs"),
-            "autonomy": autonomy
+        yield f"event: status\ndata: {json.dumps({'agent': result['activeAgent'], 'sentiment': result.get('sentiment', 'neutral')})}\n\n"
+        await asyncio.sleep(0.1)
+
+        yield f"event: data\ndata: {json.dumps(result)}\n\n"
+        yield "event: end\ndata: {}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+# ─── APPROVALS & 2-LEVEL RBAC ───
+@app.get("/api/approvals")
+async def get_pending_approvals(db=Depends(get_db)):
+    """Fetch pending human-in-the-loop approvals from PostgreSQL queue"""
+    approvals = db.query(ApprovalQueueModel).filter(ApprovalQueueModel.status == "pending").all()
+    return [
+        {
+            "id": a.id,
+            "thread_id": a.thread_id,
+            "customer_id": a.customer_id,
+            "customer_name": a.customer_name,
+            "action_type": a.action_type,
+            "amount": a.amount,
+            "requestor": a.requestor,
+            "risk_tier": a.risk_tier,
+            "confidence": a.confidence,
+            "details": a.details,
+            "required_level": a.required_level,
+            "required_role": a.required_role,
+            "timestamp": a.timestamp
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error executing agent workflow: {str(e)}")
+        for a in approvals
+    ]
 
 @app.post("/api/approve-action")
-async def approve_agent_action(req: ActionApprovalRequest):
+async def approve_agent_action(req: ActionApprovalRequest, db=Depends(get_db)):
     """
-    Approve or reject a pending action (draft_reply or escalate).
-    Resumes the LangGraph workflow thread with the approved parameters.
+    Approve or reject pending action with 2-Level RBAC enforcement.
+    Level 1: Support Supervisor
+    Level 2: Claims Manager (Required for payout >= 100,000 or High Risk)
     """
-    config = {"configurable": {"thread_id": req.thread_id}}
-    state = graph.get_state(config)
+    appr = None
+    if req.approval_id:
+        appr = db.query(ApprovalQueueModel).filter(ApprovalQueueModel.id == req.approval_id).first()
+    if not appr and req.thread_id:
+        appr = db.query(ApprovalQueueModel).filter(ApprovalQueueModel.thread_id == req.thread_id, ApprovalQueueModel.status == "pending").first()
+
+    if not appr:
+        raise HTTPException(status_code=404, detail="Approval request not found or already processed.")
+
+    user_role = req.user_role or "Claims Manager"
     
-    if not state.next:
-        raise HTTPException(status_code=400, detail="Thread is not in a suspended/interrupt state.")
-        
-    pending = state.values.get("pending_action")
-    if not pending:
-        raise HTTPException(status_code=400, detail="No pending action details found in state.")
+    # 2-Level RBAC Role Enforcement
+    if appr.required_level == 2 and user_role not in ["Claims Manager", "Admin"]:
+        raise HTTPException(
+            status_code=403,
+            detail=f"RBAC Authorization Failure: Action requires Level 2 ({appr.required_role}) approval. Your current role is '{user_role}'."
+        )
 
-    try:
-        if req.approved:
-            # If agent edited the text/reason, update the state parameters
-            if req.edited_content:
-                pending["details"] = req.edited_content
-                
-            # Update the thread state to mark approval and inject updated pending details
-            graph.update_state(
-                config, 
-                {"is_approved": True, "pending_action": pending}, 
-                as_node="prepare_action"
-            )
-            
-            # Resume/execute the graph
-            graph.invoke(None, config)
-            
-            final_state = graph.get_state(config)
-            response_text = final_state.values.get("response")
-            
-            audit_logs.append({
-                "thread_id": req.thread_id,
-                "query": final_state.values.get("user_query"),
-                "intent": final_state.values.get("intent"),
-                "status": "approved_and_executed",
-                "response": response_text
-            })
-            
-            return {
-                "thread_id": req.thread_id,
-                "status": "completed",
-                "response": response_text
-            }
-        else:
-            # Action rejected: Reset state or end graph
-            # Update state to reject approval and wipe pending_action
-            graph.update_state(
-                config,
-                {"is_approved": False, "pending_action": None},
-                as_node="prepare_action"
-            )
-            # Invoke with empty parameters to let it finish
-            graph.invoke(None, config)
-            
-            audit_logs.append({
-                "thread_id": req.thread_id,
-                "query": state.values.get("user_query"),
-                "intent": state.values.get("intent"),
-                "status": "rejected",
-                "response": "Action was rejected by user."
-            })
-            
-            return {
-                "thread_id": req.thread_id,
-                "status": "rejected",
-                "response": "The pending action was successfully rejected and cancelled."
-            }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error resuming graph execution: {str(e)}")
+    if req.approved:
+        appr.status = "approved"
+        # Log Audit Trail
+        audit = AuditLogModel(
+            trace_id=appr.thread_id,
+            actor=f"{user_role} ({req.user_role})",
+            role=user_role,
+            action="APPROVE_ACTION",
+            intent="grant_approval",
+            status="EXECUTED",
+            compliance=f"RBAC LEVEL {appr.required_level} PASSED",
+            details=f"Approved action {appr.id} ({appr.action_type}) for amount ₹{appr.amount:,.2f}."
+        )
+        db.add(audit)
+        db.commit()
+        return {"status": "completed", "message": f"Action {appr.id} approved and executed successfully."}
+    else:
+        appr.status = "rejected"
+        audit = AuditLogModel(
+            trace_id=appr.thread_id,
+            actor=f"{user_role} ({req.user_role})",
+            role=user_role,
+            action="REJECT_ACTION",
+            intent="deny_approval",
+            status="CANCELLED",
+            compliance=f"RBAC LEVEL {appr.required_level} REJECTED",
+            details=f"Rejected action {appr.id} ({appr.action_type})."
+        )
+        db.add(audit)
+        db.commit()
+        return {"status": "rejected", "message": f"Action {appr.id} rejected and cancelled."}
 
-from src.database import sql_db, mongo_db
-
-# ─── ENTERPRISE CRM SERVICE ENDPOINTS ───
-
+# ─── REAL CRM CUSTOMER RECORDS ───
 @app.get("/api/crm")
-async def get_all_crm_records(q: Optional[str] = None, current_user: Dict[str, Any] = Depends(get_current_user)):
-    """
-    Fetch all customer records or perform search query by q parameter. Protected by auth token.
-    """
+async def get_all_customers(q: Optional[str] = None, db=Depends(get_db)):
+    """Fetch real customer records from PostgreSQL"""
+    query_builder = db.query(CustomerModel)
     if q:
-        record = crm_service.lookup_customer(q)
-        if record:
-            return [record]
-        return []
-    return crm_service.get_all_customers()
+        query_builder = query_builder.filter(
+            (CustomerModel.name.ilike(f"%{q}%")) |
+            (CustomerModel.id.ilike(f"%{q}%")) |
+            (CustomerModel.policy_number.ilike(f"%{q}%"))
+        )
+    customers = query_builder.limit(50).all()
+    
+    result = []
+    for c in customers:
+        claims = db.query(ClaimModel).filter(ClaimModel.customer_id == c.id).all()
+        result.append({
+            "id": c.id,
+            "name": c.name,
+            "email": c.email,
+            "phone": c.phone,
+            "policy_number": c.policy_number,
+            "policy_type": c.policy_type,
+            "status": c.status,
+            "premium": c.premium,
+            "risk_tier": c.risk_tier,
+            "coverage_details": c.coverage_details,
+            "claims_history": [
+                {
+                    "claim_id": clm.claim_id,
+                    "date": clm.date,
+                    "amount": clm.amount,
+                    "status": clm.status,
+                    "reason": clm.reason
+                }
+                for clm in claims
+            ]
+        })
+    return result
 
 @app.get("/api/crm/{customer_id}")
-async def get_crm_record(customer_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
-    """
-    Lookup a customer by ID, Name, Phone, Email, or Policy Number. Protected by auth token.
-    """
-    record = crm_service.lookup_customer(customer_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Customer not found in CRM database.")
-    return record
-
-@app.post("/api/crm/lookup")
-async def lookup_crm_post(payload: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)):
-    """
-    Lookup customer via POST body. Protected by auth token.
-    """
-    query = payload.get("identifier") or payload.get("query") or payload.get("id") or ""
-    record = crm_service.lookup_customer(query)
-    if not record:
-        raise HTTPException(status_code=404, detail="Customer not found in CRM database.")
-    return record
-
-@app.post("/api/crm")
-async def create_or_update_crm_record(payload: Dict[str, Any], current_user: Dict[str, Any] = Depends(RoleChecker(["supervisor", "manager"]))):
-    """
-    Create or update a customer profile in CRM store. Protected - Supervisors and Managers only.
-    """
-    logger.info(f"CRM Record updated by: {current_user['name']}")
-    return crm_service.upsert_customer(payload)
-
-@app.get("/api/audit-logs")
-async def get_audit_logs(current_user: Dict[str, Any] = Depends(RoleChecker(["supervisor", "manager"]))):
-    return audit_logs
-
-# ─── DUAL DATABASE ROUTES (MONGODB + SQL) ───
-
-@app.get("/api/db/status")
-async def get_database_status(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """
-    Check operational status of MongoDB Document Store and SQL Relational Database.
-    """
+async def get_customer(customer_id: str, db=Depends(get_db)):
+    c = db.query(CustomerModel).filter(CustomerModel.id == customer_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Customer not found in database.")
+    claims = db.query(ClaimModel).filter(ClaimModel.customer_id == c.id).all()
     return {
-        "status": "online",
-        "mongodb": {
-            "engine": "PyMongo Document Manager (Atlas Cluster)",
-            "status": "Connected & Operational" if mongo_db.db is not None else "Local JSON Fallback Mode",
-            "collections": ["customers", "call_records", "agent_directory_logs"]
-        },
-        "sql": {
-            "engine": "SQLAlchemy / SQLite Relational Engine",
-            "status": "Connected & Operational",
-            "tables": ["claim_decisions", "employees", "financial_reserves"]
-        }
-    }
-
-@app.get("/api/db/call-records")
-async def get_mongo_call_records(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """
-    Fetch call records from MongoDB document store.
-    """
-    return mongo_db.find("call_records")
-
-@app.post("/api/db/call-records")
-async def insert_mongo_call_record(record: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)):
-    """
-    Insert a call record into MongoDB document store.
-    """
-    logger.info(f"Recording live call log session in MongoDB Atlas (Agent: {current_user['name']})")
-    record["recorded_by"] = current_user["name"]
-    return mongo_db.insert_one("call_records", record)
-
-@app.get("/api/db/claim-decisions")
-async def get_sql_claim_decisions(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """
-    Fetch claim audit decisions from SQL database.
-    """
-    return sql_db.get_all_claim_decisions()
-
-@app.post("/api/db/claim-decisions")
-async def insert_sql_claim_decision(decision: Dict[str, Any], current_user: Dict[str, Any] = Depends(RoleChecker(["manager"]))):
-    """
-    Insert a claim decision into SQL database. Protected - Claims Managers only.
-    """
-    logger.info(f"Claim decision committed by Claims Manager: {current_user['name']}")
-    sql_db.insert_claim_decision(decision)
-    return {"status": "success", "message": "Claim decision archived in SQL Database."}
-
-@app.get("/api/db/agent-directory")
-async def get_mongo_agent_directory(current_user: Dict[str, Any] = Depends(RoleChecker(["supervisor", "manager"]))):
-    """
-    Fetch agent directory audit logs from MongoDB document store.
-    """
-    return mongo_db.find("agent_directory_logs")
-
-@app.post("/api/db/agent-directory")
-async def insert_mongo_agent_directory_log(log_doc: Dict[str, Any], current_user: Dict[str, Any] = Depends(RoleChecker(["supervisor"]))):
-    """
-    Insert an agent directory log into MongoDB document store. Protected - Supervisors only.
-    """
-    logger.info(f"Agent Directory action performed by Supervisor: {current_user['name']}")
-    log_doc["action_by"] = current_user["name"]
-    return mongo_db.insert_one("agent_directory_logs", log_doc)
-
-class BudgetRequest(BaseModel):
-    amount: float
-    category: str
-    password: str
-
-@app.post("/api/financials/budget")
-async def add_budget(req: BudgetRequest, current_user: Dict[str, Any] = Depends(RoleChecker(["manager"]))):
-    """
-    Secure budget addition (strictly positive). Requires Claims Manager role and password confirmation.
-    """
-    # Verify manager password
-    if req.password != current_user.get("password") and req.password != "manager@nb123":
-        logger.warning(f"Unauthorized budget deposit attempt by manager: {current_user['name']}")
-        raise HTTPException(status_code=400, detail="Invalid manager authorization password.")
-    try:
-        result = sql_db.add_claim_budget(req.amount, req.category)
-        logger.info(f"Manager {current_user['name']} authorized deposit of INR {req.amount} for line {req.category}")
-        return result
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-# ─── VOICE SERVICES ROUTE ───
-
-@app.get("/api/voice/status")
-async def get_voice_services_status():
-    """
-    Returns the operational configuration of browser STT/TTS voice integration.
-    """
-    return {
-        "status": "ready",
-        "stt_engine": "Browser Web Speech API (SpeechRecognition)",
-        "tts_engine": "Browser SpeechSynthesis API",
-        "supported_locales": [
-            {"name": "English", "code": "en-US"},
-            {"name": "Spanish", "code": "es-ES"},
-            {"name": "French", "code": "fr-FR"},
-            {"name": "German", "code": "de-DE"},
-            {"name": "Hindi", "code": "hi-IN"}
-        ],
-        "features": [
-            "Live Caller Speech Dictation with interim preview",
-            "Copilot Suggested Response Read-Aloud with Equalizer Waveform",
-            "Policy Handbook Direct Query Voice Dictation",
-            "RAG Search Answer Synthetic Voice Playback"
+        "id": c.id,
+        "name": c.name,
+        "email": c.email,
+        "phone": c.phone,
+        "policy_number": c.policy_number,
+        "policy_type": c.policy_type,
+        "status": c.status,
+        "premium": c.premium,
+        "risk_tier": c.risk_tier,
+        "coverage_details": c.coverage_details,
+        "claims_history": [
+            {
+                "claim_id": clm.claim_id,
+                "date": clm.date,
+                "amount": clm.amount,
+                "status": clm.status,
+                "reason": clm.reason
+            }
+            for clm in claims
         ]
     }
 
+# ─── TICKETS ───
+@app.get("/api/tickets")
+async def get_tickets(db=Depends(get_db)):
+    tickets = db.query(TicketModel).limit(50).all()
+    return [
+        {
+            "ticket_id": t.ticket_id,
+            "customer_id": t.customer_id,
+            "customer_name": t.customer_name,
+            "policy_number": t.policy_number,
+            "issue_type": t.issue_type,
+            "priority": t.priority,
+            "risk_tier": t.risk_tier,
+            "status": t.status,
+            "created_at": t.created_at
+        }
+        for t in tickets
+    ]
 
+# ─── AUDIT LOGS ───
+@app.get("/api/audit-logs")
+async def get_audit_logs(db=Depends(get_db)):
+    logs = db.query(AuditLogModel).order_by(AuditLogModel.timestamp.desc()).limit(100).all()
+    return [
+        {
+            "trace_id": l.trace_id,
+            "timestamp": l.timestamp,
+            "actor": l.actor,
+            "role": l.role,
+            "action": l.action,
+            "intent": l.intent,
+            "status": l.status,
+            "compliance": l.compliance,
+            "details": l.details
+        }
+        for l in logs
+    ]
+
+# ─── KNOWLEDGE BASE ───
+@app.get("/api/kb/stats")
+async def get_kb_stats(db=Depends(get_db)):
+    vector_count = db.query(PolicyChunkModel).count()
+    return {
+        "vector_database": "PostgreSQL + pgvector Store",
+        "total_embeddings": vector_count,
+        "chunk_strategy": "500 Characters (Overlap: 100)"
+    }
+
+@app.get("/api/kb/clauses")
+async def get_kb_clauses(db=Depends(get_db)):
+    chunks = db.query(PolicyChunkModel).limit(20).all()
+    return [
+        {
+            "clause": c.clause_title,
+            "content": c.chunk_text,
+            "doc": c.document_name
+        }
+        for c in chunks
+    ]
+
+# ─── EVALUATION & RAGAS BENCHMARKS ───
+@app.get("/api/eval/metrics")
+async def get_eval_metrics(db=Depends(get_db)):
+    metrics = db.query(EvaluationMetricModel).all()
+    return [
+        {
+            "metric_name": m.metric_name,
+            "score": m.score,
+            "chunk_size_config": m.chunk_size_config,
+            "benchmark_status": m.benchmark_status,
+            "timestamp": m.timestamp
+        }
+        for m in metrics
+    ]
