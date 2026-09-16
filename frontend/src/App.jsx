@@ -3,6 +3,29 @@ import "./App.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api";
 
+// ─── STAFF DIRECTORY WITH AUTHENTICATION CREDENTIALS ───
+const STAFF_DIRECTORY = [
+  // Tier 1: Customer Service Manager (CSM)
+  { id: "STAFF-001", name: "Alex Mercer", email: "alex.mercer@northbridge.com", password: "CSM@2026", role: "Customer Service Manager (CSM)", tier: 1, team: "Executive", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
+
+  // Tier 2: Technical Support Specialist (Senior CSR) — Team A
+  { id: "STAFF-002", name: "Riya Kapoor", email: "riya.kapoor@northbridge.com", password: "SrCSR@2026A", role: "Technical Support Specialist (Senior CSR)", tier: 2, team: "Team Alpha", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
+  // Tier 2: Technical Support Specialist (Senior CSR) — Team B
+  { id: "STAFF-003", name: "James Wilson", email: "james.wilson@northbridge.com", password: "SrCSR@2026B", role: "Technical Support Specialist (Senior CSR)", tier: 2, team: "Team Bravo", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
+
+  // Tier 3: Support Agent (CSR) — Team Alpha (under Riya Kapoor)
+  { id: "STAFF-004", name: "Sarah Jenkins", email: "sarah.jenkins@northbridge.com", password: "CSR@2026A1", role: "Support Agent", tier: 3, team: "Team Alpha", supervisor: "Riya Kapoor", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
+  { id: "STAFF-005", name: "Anita Ray", email: "anita.ray@northbridge.com", password: "CSR@2026A2", role: "Support Agent", tier: 3, team: "Team Alpha", supervisor: "Riya Kapoor", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
+  { id: "STAFF-006", name: "David Chen", email: "david.chen@northbridge.com", password: "CSR@2026A3", role: "Support Agent", tier: 3, team: "Team Alpha", supervisor: "Riya Kapoor", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
+  { id: "STAFF-007", name: "Priya Nair", email: "priya.nair@northbridge.com", password: "CSR@2026A4", role: "Support Agent", tier: 3, team: "Team Alpha", supervisor: "Riya Kapoor", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
+
+  // Tier 3: Support Agent (CSR) — Team Bravo (under James Wilson)
+  { id: "STAFF-008", name: "Rohan Gupta", email: "rohan.gupta@northbridge.com", password: "CSR@2026B1", role: "Support Agent", tier: 3, team: "Team Bravo", supervisor: "James Wilson", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
+  { id: "STAFF-009", name: "Emily Stone", email: "emily.stone@northbridge.com", password: "CSR@2026B2", role: "Support Agent", tier: 3, team: "Team Bravo", supervisor: "James Wilson", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
+  { id: "STAFF-010", name: "Arjun Mehta", email: "arjun.mehta@northbridge.com", password: "CSR@2026B3", role: "Support Agent", tier: 3, team: "Team Bravo", supervisor: "James Wilson", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
+  { id: "STAFF-011", name: "Lisa Park", email: "lisa.park@northbridge.com", password: "CSR@2026B4", role: "Support Agent", tier: 3, team: "Team Bravo", supervisor: "James Wilson", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" }
+];
+
 // ─── GENERATE 200 FULLY CONSISTENT CUSTOMER RECORDS FOR INITIAL STATE ───
 const POLICY_TYPES = [
   "Comprehensive Private Car Policy",
@@ -116,7 +139,7 @@ const INITIAL_PENDING_APPROVALS = [
     details: "Commercial fleet claim CLM-9104 exceeds single-agent payout limit ($1,000 threshold). Policy Clause 6.1 deductible applies.",
     status: "pending",
     required_level: 2,
-    required_role: "Claims Manager",
+    required_role: "Customer Service Manager (CSM)",
     timestamp: "2026-09-15 23:10"
   },
   {
@@ -132,7 +155,7 @@ const INITIAL_PENDING_APPROVALS = [
     details: "Customer requested 40% NCB instead of 35% standard band. Requires supervisor approval per Clause 8.3.",
     status: "pending",
     required_level: 1,
-    required_role: "Supervisor",
+    required_role: "Technical Support Specialist (Senior CSR)",
     timestamp: "2026-09-15 22:45"
   }
 ];
@@ -157,7 +180,7 @@ const INITIAL_AUDIT_LOGS = [
     action: "SUSPEND_FOR_HITL",
     intent: "escalate",
     status: "PENDING_APPROVAL",
-    compliance: "2-LEVEL RBAC (Level 2: Claims Manager)",
+    compliance: "2-LEVEL RBAC (Level 2: Customer Service Manager)",
     details: "Payout amount ₹84,000 exceeds $1,000 threshold. Suspended for supervisor review."
   }
 ];
@@ -236,17 +259,17 @@ export default function App() {
   // 3 Hierarchical RBAC Posts State
   // Role Tiers:
   // Tier 3: "Support Agent" (Frontline voice intake & copilot assist)
-  // Tier 2: "Supervisor" (Team oversight, low/medium risk overrides)
-  // Tier 1: "Claims Manager" (Full executive access across all 200 records & high payouts)
+  // Tier 2: "Technical Support Specialist (Senior CSR)" (Team oversight, low/medium risk overrides)
+  // Tier 1: "Customer Service Manager (CSM)" (Full executive access across all 200 records & high payouts)
   const [user, setUser] = useState({
     name: "Alex Mercer",
-    role: "Claims Manager",
+    role: "Customer Service Manager (CSM)",
     email: "alex.mercer@northbridge.com",
     avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"
   });
 
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [activeTab, setActiveTab] = useState("copilot");
+  const [activeTab, setActiveTab] = useState("dashboard");
   const [copilotSubTab, setCopilotSubTab] = useState("chat");
 
   // All 200 Real Customer Records
@@ -260,7 +283,7 @@ export default function App() {
   const [kbStats, setKbStats] = useState({ vector_database: "PostgreSQL + pgvector Store", total_embeddings: 107, chunk_strategy: "500 Characters (Overlap: 100)" });
   const [evalMetrics, setEvalMetrics] = useState(INITIAL_EVAL_METRICS);
 
-  // Centralized Call Ledger DB state (Restricted to Supervisor & Claims Manager)
+  // Centralized Call Ledger DB state (Restricted to Senior CSR & CSM)
   const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [conversationSearchQuery, setConversationSearchQuery] = useState("");
@@ -405,29 +428,45 @@ export default function App() {
   const handleLogin = (e) => {
     e.preventDefault();
     const form = e.target;
-    const email = form.email.value;
-    const role = form.role.value;
+    const email = form.email.value.trim().toLowerCase();
+    const password = form.password.value;
+
+    const staffMatch = STAFF_DIRECTORY.find(
+      (s) => s.email.toLowerCase() === email && s.password === password
+    );
+
+    if (!staffMatch) {
+      showToast("❌ Authentication Failed: Invalid email or password. Check your credentials.");
+      return;
+    }
+
     setUser({
-      name: email.split("@")[0].replace(".", " ").toUpperCase() || "Support Staff",
-      role: role,
-      email: email,
-      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"
+      name: staffMatch.name,
+      role: staffMatch.role,
+      email: staffMatch.email,
+      team: staffMatch.team,
+      tier: staffMatch.tier,
+      staffId: staffMatch.id,
+      supervisor: staffMatch.supervisor || null,
+      avatar: staffMatch.avatar
     });
     setIsAuthenticated(true);
 
     // Default tab based on role abstraction
-    if (role === "Support Agent") setActiveTab("copilot");
-    else if (role === "Supervisor") setActiveTab("dashboard");
-    else setActiveTab("copilot");
+    if (staffMatch.role === "Support Agent") setActiveTab("copilot");
+    else if (staffMatch.role === "Technical Support Specialist (Senior CSR)") setActiveTab("tickets");
+    else setActiveTab("dashboard");
 
-    showToast(`Authenticated as ${role} (${email})`);
+    showToast(`Authenticated as ${staffMatch.role} — ${staffMatch.name} (${staffMatch.team})`);
   };
 
   // RBAC Permission Check Utility
   const canAccessTab = (tabName) => {
-    if (user.role === "Claims Manager") return true; // Unrestricted access
-    if (user.role === "Supervisor") {
-      return ["dashboard", "copilot", "tickets", "approvals", "conversations", "kb", "audit"].includes(tabName);
+    if (user.role === "Customer Service Manager (CSM)") {
+      return ["dashboard", "tickets", "approvals", "conversations", "kb", "audit", "eval", "settings"].includes(tabName);
+    }
+    if (user.role === "Technical Support Specialist (Senior CSR)") {
+      return ["tickets", "approvals", "conversations", "kb", "audit"].includes(tabName);
     }
     if (user.role === "Support Agent") {
       return ["copilot", "tickets"].includes(tabName); // Frontline only
@@ -503,17 +542,17 @@ export default function App() {
           thread_id: "tr_" + Math.random().toString(36).substring(2, 9),
           action_type: "Claim Payout Authorization",
           amount: 45000,
-          details: "Approve ₹45,000 claim reimbursement under Policy " + selectedCustomer.policy_number + " (Requires Level 2 Claims Manager approval).",
+          details: "Approve ₹45,000 claim reimbursement under Policy " + selectedCustomer.policy_number + " (Requires Level 2 CSM approval).",
           status: "pending",
           required_level: 2,
-          required_role: "Claims Manager"
+          required_role: "Customer Service Manager (CSM)"
         };
         citations = [
           {
             id: 1,
             title: "Clause 1: Scope of Cover & Claim Authorization Limits",
             doc: "Vehicle_Insurance_Policy_Handbook_2026_2027.md",
-            snippet: "Claims exceeding $1,000 (approx. ₹80,000 equivalent threshold) require dual authorization from Claims Manager.",
+            snippet: "Claims exceeding $1,000 (approx. ₹80,000 equivalent threshold) require dual authorization from Customer Service Manager.",
             similarity: 0.887
           }
         ];
@@ -563,12 +602,12 @@ export default function App() {
 
     // RBAC Check for Support Agent
     if (user.role === "Support Agent") {
-      showToast("❌ RBAC Violation: Support Agents cannot approve payouts. Escalated to Supervisor/Manager.");
+      showToast("❌ RBAC Violation: Support Agents cannot approve payouts. Escalated to Senior CSR/CSM.");
       return;
     }
 
-    if (targetMsg.hitlCard.required_level === 2 && user.role === "Supervisor") {
-      showToast("❌ RBAC Violation: Level 2 (Claims Manager) role required for high-risk payout.");
+    if (targetMsg.hitlCard.required_level === 2 && user.role === "Technical Support Specialist (Senior CSR)") {
+      showToast("❌ RBAC Violation: Level 2 (Customer Service Manager) role required for high-risk payout.");
       return;
     }
 
@@ -613,8 +652,8 @@ export default function App() {
       showToast("❌ RBAC Violation: Support Agents do not have approval permissions.");
       return;
     }
-    if (targetAppr && targetAppr.required_level === 2 && user.role === "Supervisor") {
-      showToast("❌ RBAC Violation: Level 2 (Claims Manager) authorization required.");
+    if (targetAppr && targetAppr.required_level === 2 && user.role === "Technical Support Specialist (Senior CSR)") {
+      showToast("❌ RBAC Violation: Level 2 (Customer Service Manager) authorization required.");
       return;
     }
 
@@ -705,19 +744,54 @@ export default function App() {
             </div>
             <h2 className="brand-headline">Grounded, governed AI copilot for enterprise insurance teams.</h2>
             <p className="brand-subtext">
-              Hierarchical 3-Level RBAC architecture: Support Agent (Frontline), Supervisor (Level 1 Review), and Claims Manager (Level 2 Executive).
+              Hierarchical 3-Level RBAC architecture: Support Agent (Frontline CSR), Technical Support Specialist (Senior CSR), and Customer Service Manager (CSM).
             </p>
             <div className="brand-tags">
-              <span className="brand-tag">✓ Tier 3: Support Agent (Customer Calls)</span>
-              <span className="brand-tag">✓ Tier 2: Supervisor (Level 1 Approvals)</span>
-              <span className="brand-tag">✓ Tier 1: Claims Manager (Executive RBAC)</span>
+              <span className="brand-tag">✓ Tier 3: Support Agent / CSR (Customer Calls)</span>
+              <span className="brand-tag">✓ Tier 2: Technical Support Specialist / Senior CSR</span>
+              <span className="brand-tag">✓ Tier 1: Customer Service Manager (CSM)</span>
             </div>
           </div>
 
           <div className="login-form-panel">
             <h3 className="form-title">Staff Portal Login</h3>
-            <p className="form-subtitle">Select your hierarchical RBAC assignment</p>
+            <p className="form-subtitle">Enter credentials or select staff member from directory below</p>
             <form onSubmit={handleLogin} className="enterprise-login-form">
+              <div className="form-group">
+                <label>Quick Staff Selector (11 Accounts / 3 Tiers)</label>
+                <select
+                  className="login-preset-select"
+                  onChange={(e) => {
+                    const selected = STAFF_DIRECTORY.find(s => s.id === e.target.value);
+                    if (selected) {
+                      e.target.form.email.value = selected.email;
+                      e.target.form.password.value = selected.password;
+                    }
+                  }}
+                  defaultValue="STAFF-001"
+                >
+                  <optgroup label="Tier 1 — Executive Management">
+                    <option value="STAFF-001">👤 Alex Mercer (CSM) — alex.mercer@northbridge.com</option>
+                  </optgroup>
+                  <optgroup label="Tier 2 — Technical Support Specialists (Senior CSR)">
+                    <option value="STAFF-002">👤 Riya Kapoor (Team Alpha Lead) — riya.kapoor@northbridge.com</option>
+                    <option value="STAFF-003">👤 James Wilson (Team Bravo Lead) — james.wilson@northbridge.com</option>
+                  </optgroup>
+                  <optgroup label="Tier 3 — Support Agents (Team Alpha — Riya Kapoor)">
+                    <option value="STAFF-004">👤 Sarah Jenkins (CSR 1) — sarah.jenkins@northbridge.com</option>
+                    <option value="STAFF-005">👤 Anita Ray (CSR 2) — anita.ray@northbridge.com</option>
+                    <option value="STAFF-006">👤 David Chen (CSR 3) — david.chen@northbridge.com</option>
+                    <option value="STAFF-007">👤 Priya Nair (CSR 4) — priya.nair@northbridge.com</option>
+                  </optgroup>
+                  <optgroup label="Tier 3 — Support Agents (Team Bravo — James Wilson)">
+                    <option value="STAFF-008">👤 Rohan Gupta (CSR 5) — rohan.gupta@northbridge.com</option>
+                    <option value="STAFF-009">👤 Emily Stone (CSR 6) — emily.stone@northbridge.com</option>
+                    <option value="STAFF-010">👤 Arjun Mehta (CSR 7) — arjun.mehta@northbridge.com</option>
+                    <option value="STAFF-011">👤 Lisa Park (CSR 8) — lisa.park@northbridge.com</option>
+                  </optgroup>
+                </select>
+              </div>
+
               <div className="form-group">
                 <label>Work Email</label>
                 <input
@@ -734,19 +808,10 @@ export default function App() {
                 <input
                   type="password"
                   name="password"
-                  defaultValue="••••••••••••"
+                  defaultValue="CSM@2026"
                   placeholder="Enter security password"
                   required
                 />
-              </div>
-
-              <div className="form-group">
-                <label>Hierarchical RBAC Post Assignment</label>
-                <select name="role" defaultValue="Claims Manager">
-                  <option value="Support Agent">Tier 3 (Frontline): Support Agent / CSR</option>
-                  <option value="Supervisor">Tier 2 (Mid-Level): Support Supervisor</option>
-                  <option value="Claims Manager">Tier 1 (Executive): Claims Manager</option>
-                </select>
               </div>
 
               <button type="submit" className="login-btn">
@@ -1062,7 +1127,7 @@ export default function App() {
                                         className="hitl-btn approve"
                                         onClick={() => handleHITLAction(msg.id, "approve")}
                                       >
-                                        ✓ Approve & Execute ({msg.hitlCard.required_role || "Supervisor/Manager"})
+                                        ✓ Approve & Execute ({msg.hitlCard.required_role || "Senior CSR/CSM"})
                                       </button>
                                       <button
                                         className="hitl-btn reject"
@@ -1092,7 +1157,7 @@ export default function App() {
                           </div>
                         </div>
                       ))}
-                      {isLoading && <div className="chat-loading-indicator">⚡ LangGraph Supervisor processing query...</div>}
+                      {isLoading && <div className="chat-loading-indicator">⚡ LangGraph Router processing query...</div>}
                       <div ref={chatEndRef} />
                     </div>
 
@@ -1449,7 +1514,7 @@ export default function App() {
             <div className="page-container">
               <div className="page-header">
                 <h2>Human-in-the-Loop Approval Queue ({user.role} Authorized)</h2>
-                <p>Tier 3: Support Agent (View only) | Tier 2: Supervisor (Level 1) | Tier 1: Claims Manager (Level 2).</p>
+                <p>Tier 3: Support Agent (View only) | Tier 2: Senior CSR (Level 1) | Tier 1: CSM (Level 2).</p>
               </div>
 
               {pendingApprovals.length === 0 ? (
@@ -1503,12 +1568,12 @@ export default function App() {
             </div>
           )}
 
-          {/* PAGE 5: CENTRALIZED CALL DB LEDGER (Supervisor & Claims Manager Only) */}
+          {/* PAGE 5: CENTRALIZED CALL DB LEDGER (Senior CSR & CSM Only) */}
           {activeTab === "conversations" && (
             <div className="page-container">
               <div className="page-header">
                 <h2>Centralized Customer & Agent Call Ledger ({conversations.length} Records)</h2>
-                <p>Immutable database of all Tier 3 Support Agent customer call transcripts & AI copilot responses. Restricted to Supervisors (Tier 2) and Claims Managers (Tier 1).</p>
+                <p>Immutable database of all Tier 3 Support Agent customer call transcripts & AI copilot responses. Restricted to Senior CSR (Tier 2) and CSM (Tier 1).</p>
               </div>
 
               {user.role === "Support Agent" ? (
@@ -1517,7 +1582,7 @@ export default function App() {
                   <h3 style={{ marginTop: "16px" }}>RBAC Access Denied</h3>
                   <p style={{ color: "var(--text-muted)", marginTop: "8px" }}>
                     Support Agents (Tier 3) do not have permission to access the Centralized Call Ledger Database.
-                    This resource is restricted to Supervisors and Claims Managers.
+                    This resource is restricted to Senior CSR and Customer Service Managers.
                   </p>
                 </div>
               ) : (
@@ -1778,13 +1843,13 @@ export default function App() {
 
                   <div className="rbac-post-box">
                     <span className="rbac-post-tier">Tier 2 (Mid-Level)</span>
-                    <h4>Support Supervisor</h4>
-                    <p>Level 1 Human Intervention — reviews team tickets, approves low/medium risk overrides (payouts &lt; ₹100,000), monitors audit logs.</p>
+                    <h4>Technical Support Specialist (Senior CSR)</h4>
+                    <p>Level 1 Human Intervention — reviews team tickets, approves low/medium risk overrides (payouts &lt; ₹100,000), monitors audit logs. Cannot access Dashboard or Chat/Copilot.</p>
                   </div>
 
                   <div className="rbac-post-box">
                     <span className="rbac-post-tier">Tier 1 (Executive)</span>
-                    <h4>Claims Manager</h4>
+                    <h4>Customer Service Manager (CSM)</h4>
                     <p>Level 2 Human Intervention — unrestricted system access across all 200 customer accounts, high-value payout approvals (≥ ₹100,000), RAGAS eval metrics, and system governance.</p>
                   </div>
                 </div>

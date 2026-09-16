@@ -39,7 +39,7 @@ def on_startup():
 class LoginRequest(BaseModel):
     email: str
     password: str
-    role: Optional[str] = "Claims Manager"
+    role: Optional[str] = "Customer Service Manager (CSM)"
 
 class QueryRequest(BaseModel):
     query: str
@@ -51,7 +51,7 @@ class ActionApprovalRequest(BaseModel):
     thread_id: str
     approval_id: Optional[str] = None
     approved: bool
-    user_role: Optional[str] = "Claims Manager"
+    user_role: Optional[str] = "Customer Service Manager (CSM)"
     edited_content: Optional[str] = None
 
 @app.get("/")
@@ -83,7 +83,7 @@ async def login(req: LoginRequest):
         "user": {
             "name": req.email.split("@")[0].replace(".", " ").title(),
             "email": req.email,
-            "role": req.role or "Claims Manager"
+            "role": req.role or "Customer Service Manager (CSM)"
         }
     }
 
@@ -147,7 +147,7 @@ async def approve_agent_action(req: ActionApprovalRequest, db=Depends(get_db)):
     """
     Approve or reject pending action with 2-Level RBAC enforcement.
     Level 1: Support Supervisor
-    Level 2: Claims Manager (Required for payout >= 100,000 or High Risk)
+    Level 2: Customer Service Manager (CSM) (Required for payout >= 100,000 or High Risk)
     """
     appr = None
     if req.approval_id:
@@ -158,10 +158,10 @@ async def approve_agent_action(req: ActionApprovalRequest, db=Depends(get_db)):
     if not appr:
         raise HTTPException(status_code=404, detail="Approval request not found or already processed.")
 
-    user_role = req.user_role or "Claims Manager"
+    user_role = req.user_role or "Customer Service Manager (CSM)"
     
     # 2-Level RBAC Role Enforcement
-    if appr.required_level == 2 and user_role not in ["Claims Manager", "Admin"]:
+    if appr.required_level == 2 and user_role not in ["Customer Service Manager (CSM)", "Admin"]:
         raise HTTPException(
             status_code=403,
             detail=f"RBAC Authorization Failure: Action requires Level 2 ({appr.required_role}) approval. Your current role is '{user_role}'."
@@ -309,19 +309,19 @@ async def get_audit_logs(db=Depends(get_db)):
 # ─── CENTRALIZED CONVERSATION & CALL LEDGER (RESTRICTED TO SUPERVISOR & CLAIMS MANAGER) ───
 @app.get("/api/conversations")
 async def get_conversations(
-    user_role: Optional[str] = Query("Claims Manager"),
+    user_role: Optional[str] = Query("Customer Service Manager (CSM)"),
     customer_id: Optional[str] = Query(None),
     db=Depends(get_db)
 ):
     """
     Centralized DB ledger storing all customer-tier 3 agent call/conversation transcripts.
-    RBAC Restriction: Exclusive to 'Supervisor' (Tier 2) and 'Claims Manager' (Tier 1).
+    RBAC Restriction: Exclusive to 'Technical Support Specialist (Senior CSR)' (Tier 2) and 'Customer Service Manager (CSM)' (Tier 1).
     Support Agents (Tier 3) receive 403 Forbidden.
     """
-    if user_role not in ["Supervisor", "Claims Manager", "Admin"]:
+    if user_role not in ["Technical Support Specialist (Senior CSR)", "Customer Service Manager (CSM)", "Admin"]:
         raise HTTPException(
             status_code=403,
-            detail=f"RBAC Access Denied: Centralized Call Ledger is restricted to Supervisors and Claims Managers. Support Agents cannot access this database. Your current role is '{user_role}'."
+            detail=f"RBAC Access Denied: Centralized Call Ledger is restricted to Technical Support Specialists (Senior CSR) and Customer Service Managers (CSM). Support Agents cannot access this database. Your current role is '{user_role}'."
         )
 
     query_builder = db.query(CustomerConversationModel)

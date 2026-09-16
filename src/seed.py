@@ -237,7 +237,7 @@ def seed_database():
             details="Commercial fleet claim CLM-9104 exceeds single-agent payout limit ($1,000 threshold). Policy Clause 6.1 deductible applies.",
             status="pending",
             required_level=2,
-            required_role="Claims Manager"
+            required_role="Customer Service Manager (CSM)"
         ))
 
         # Seed initial audit log entries

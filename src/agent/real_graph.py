@@ -77,9 +77,9 @@ class RealMultiAgentGraph:
                 
                 # Check 2-Level RBAC Human Intervention Logic
                 # Level 1: Supervisor (Standard Payout / Medium Risk)
-                # Level 2: Claims Manager (High Payout >= 100,000 or High Risk Tier)
+                # Level 2: Customer Service Manager (CSM) (High Payout >= 100,000 or High Risk Tier)
                 required_level = 2 if (estimated_payout >= 100000.0 or customer.risk_tier == "High") else 1
-                required_role = "Claims Manager" if required_level == 2 else "Supervisor"
+                required_role = "Customer Service Manager (CSM)" if required_level == 2 else "Technical Support Specialist (Senior CSR)"
 
                 if estimated_payout >= HITL_PAYOUT_THRESHOLD or customer.risk_tier == "High":
                     # Suspend for 2-Level RBAC Human-in-the-Loop approval

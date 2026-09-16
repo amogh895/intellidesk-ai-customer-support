@@ -70,8 +70,8 @@ class ApprovalQueueModel(Base):
     confidence = Column(Integer, default=75)
     details = Column(Text, nullable=False)
     status = Column(String, default="pending") # pending, approved, rejected
-    required_level = Column(Integer, default=1) # 1 = Supervisor (Level 1), 2 = Claims Manager (Level 2)
-    required_role = Column(String, default="Supervisor") # "Supervisor" or "Claims Manager"
+    required_level = Column(Integer, default=1) # 1 = Technical Support Specialist (Senior CSR) (Level 1), 2 = Customer Service Manager (CSM) (Level 2)
+    required_role = Column(String, default="Technical Support Specialist (Senior CSR)") # "Technical Support Specialist (Senior CSR)" or "Customer Service Manager (CSM)"
     timestamp = Column(String, default=lambda: datetime.now().strftime("%Y-%m-%d %H:%M"))
 
 class AuditLogModel(Base):
