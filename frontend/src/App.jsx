@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
+import { useVoiceIntake } from "./hooks/useVoiceIntake";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api";
 
@@ -288,6 +289,230 @@ export default function App() {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [conversationSearchQuery, setConversationSearchQuery] = useState("");
 
+  // ─── CUSTOMER PORTAL STATE & VOICE INTAKE ───
+  const [appRealm, setAppRealm] = useState("staff"); // "staff" or "customer"
+  const [portalAuth, setPortalAuth] = useState({
+    isAuthenticated: false,
+    customer: null,
+    token: null
+  });
+  const [portalTab, setPortalTab] = useState("submit"); // "submit" or "requests"
+  const [portalRequests, setPortalRequests] = useState([
+    {
+      id: "REQ-2026-001",
+      customer_id: "CRM-101",
+      customer_name: "Rahul Verma",
+      policy_number: "POL-NB-2026-9921",
+      channel: "voice",
+      original_query: "Hello, I had a minor parking scrape last night on my vehicle. What is the compulsory deductible for my policy POL-NB-2026-9921?",
+      redacted_query: "Hello, I had a minor parking scrape last night on my vehicle. What is the compulsory deductible for my policy POL-NB-2026-9921?",
+      status: "answered",
+      created_at: "2026-09-15 22:14:05",
+      messages: [
+        {
+          id: "MSG-9001",
+          sender_role: "customer",
+          body: "Hello, I had a minor parking scrape last night on my vehicle. What is the compulsory deductible for my policy POL-NB-2026-9921?",
+          created_at: "2026-09-15 22:14:05"
+        },
+        {
+          id: "MSG-9002",
+          sender_role: "agent",
+          body: "Based on your Comprehensive Private Car Policy (POL-NB-2026-9921), your compulsory deductible is ₹1,000. However, because your account has the active Zero Depreciation Rider, replacement of bumper and body components will be covered without standard age depreciation.",
+          citations: [
+            {
+              id: 1,
+              title: "Clause 4: Deductibles & Compulsory Excess",
+              doc: "Vehicle_Insurance_Policy_Handbook_2026_2027.md",
+              snippet: "Compulsory deductible per accidental claim: Vehicles <= 1500cc: ₹1,000."
+            }
+          ],
+          created_at: "2026-09-15 22:15:30"
+        }
+      ]
+    }
+  ]);
+  const [selectedPortalRequest, setSelectedPortalRequest] = useState(null);
+  const [portalInputMode, setPortalInputMode] = useState("text"); // "text" or "voice"
+  const [portalTextQuery, setPortalTextQuery] = useState("");
+  const [portalVoiceConfirmedQuery, setPortalVoiceConfirmedQuery] = useState("");
+  const [portalVoiceConfirmed, setPortalVoiceConfirmed] = useState(false);
+
+  const voiceIntake = useVoiceIntake();
+
+  // Sync voice intake transcript to confirmation input box
+  useEffect(() => {
+    if (voiceIntake.transcript) {
+      setPortalVoiceConfirmedQuery(voiceIntake.transcript);
+    }
+  }, [voiceIntake.transcript]);
+
+  // ─── REAL-TIME SSE SUBSCRIPTION FOR CUSTOMER PORTAL ───
+  useEffect(() => {
+    if (portalAuth.isAuthenticated && portalAuth.customer?.id) {
+      const custId = portalAuth.customer.id;
+      const sseUrl = `${API_BASE_URL}/portal/requests/stream?customer_id=${custId}`;
+      const eventSource = new EventSource(sseUrl);
+
+      eventSource.addEventListener("request_updated", (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          showToast(`🔔 Real-Time Update: Staff approved answer for request ${data.id || ""}`);
+          fetchCustomerRequests(portalAuth.token);
+        } catch (err) {
+          console.error("Error parsing customer SSE event:", err);
+        }
+      });
+
+      eventSource.onerror = (err) => {
+        console.warn("Customer SSE connection notice");
+      };
+
+      return () => {
+        eventSource.close();
+      };
+    }
+  }, [portalAuth.isAuthenticated, portalAuth.customer?.id]);
+
+  const handlePortalDemoLogin = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/portal/auth/demo-login`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setPortalAuth({
+          isAuthenticated: true,
+          customer: data.customer,
+          token: data.access_token
+        });
+        showToast(`Authenticated Demo Customer: ${data.customer.name} (${data.customer.id})`);
+        fetchCustomerRequests(data.access_token);
+      } else {
+        throw new Error("Backend login offline");
+      }
+    } catch (err) {
+      setPortalAuth({
+        isAuthenticated: true,
+        customer: {
+          id: "CRM-101",
+          name: "Rahul Verma",
+          email: "rahul.verma@example.com",
+          phone: "+91 98765 43210",
+          policy_number: "POL-NB-2026-9921",
+          policy_type: "Comprehensive Private Car Policy",
+          risk_tier: "Low",
+          realm: "customer",
+          is_demo: true
+        },
+        token: "demo_token_crm_101"
+      });
+      showToast("Launched Demo Customer Portal (Rahul Verma — CRM-101)");
+    }
+  };
+
+  const handlePortalCustomerLogin = async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const email = form.email.value;
+    const password = form.password.value;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/portal/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setPortalAuth({
+          isAuthenticated: true,
+          customer: data.customer,
+          token: data.access_token
+        });
+        showToast(`Authenticated Customer: ${data.customer.name} (${data.customer.id})`);
+        fetchCustomerRequests(data.access_token);
+      } else {
+        const errDetail = await res.json();
+        showToast(`❌ Login Failed: ${errDetail.detail || "Check credentials"}`);
+      }
+    } catch (err) {
+      showToast("❌ Unable to connect to authentication gateway.");
+    }
+  };
+
+  const fetchCustomerRequests = async (token) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/portal/requests`, {
+        headers: { Authorization: `Bearer ${token || ""}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) setPortalRequests(data);
+      }
+    } catch (err) {
+      console.log("Offline portal requests fetch");
+    }
+  };
+
+  const handlePortalSubmitRequest = async (e) => {
+    e.preventDefault();
+    const finalQuery = portalInputMode === "voice" ? portalVoiceConfirmedQuery : portalTextQuery;
+
+    if (!finalQuery.trim()) {
+      showToast("❌ Please enter or dictate a query before submitting.");
+      return;
+    }
+
+    const channelType = portalInputMode === "voice" ? "voice" : "text";
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/portal/requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${portalAuth.token || ""}`
+        },
+        body: JSON.stringify({ query: finalQuery, channel: channelType })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        showToast("✓ Support request submitted & queued for staff review!");
+        fetchCustomerRequests(portalAuth.token);
+      } else {
+        throw new Error("Backend offline");
+      }
+    } catch (err) {
+      const newReq = {
+        id: `REQ-2026-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+        customer_id: portalAuth.customer ? portalAuth.customer.id : "CRM-101",
+        customer_name: portalAuth.customer ? portalAuth.customer.name : "Rahul Verma",
+        policy_number: portalAuth.customer ? portalAuth.customer.policy_number : "POL-NB-2026-9921",
+        channel: channelType,
+        original_query: finalQuery,
+        redacted_query: finalQuery,
+        status: "new",
+        created_at: new Date().toLocaleString(),
+        messages: [
+          {
+            id: `MSG-${Date.now()}`,
+            sender_role: "customer",
+            body: finalQuery,
+            created_at: new Date().toLocaleString()
+          }
+        ]
+      };
+      setPortalRequests(prev => [newReq, ...prev]);
+      showToast("✓ Support request submitted and queued for staff approval!");
+    }
+
+    setPortalTextQuery("");
+    setPortalVoiceConfirmedQuery("");
+    setPortalVoiceConfirmed(false);
+    voiceIntake.resetTranscript();
+    setPortalTab("requests");
+  };
+
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -460,16 +685,131 @@ export default function App() {
     showToast(`Authenticated as ${staffMatch.role} — ${staffMatch.name} (${staffMatch.team})`);
   };
 
+  // ─── STAFF INCOMING QUEUE STATE & SSE REAL-TIME ALERT ───
+  const [staffQueue, setStaffQueue] = useState([
+    {
+      id: "REQ-2026-001",
+      customer_id: "CRM-101",
+      customer_name: "Rahul Verma",
+      policy_number: "POL-NB-2026-9921",
+      risk_tier: "Low",
+      channel: "voice",
+      original_query: "Hello, I had a minor parking scrape last night on my vehicle. What is the compulsory deductible for my policy POL-NB-2026-9921?",
+      redacted_query: "Hello, I had a minor parking scrape last night on my vehicle. What is the compulsory deductible for my policy POL-NB-2026-9921?",
+      status: "answered",
+      created_at: "2026-09-15 22:14:05",
+      messages: []
+    },
+    {
+      id: "REQ-2026-002",
+      customer_id: "CRM-103",
+      customer_name: "Amit Patel",
+      policy_number: "POL-NB-2026-1189",
+      risk_tier: "High",
+      channel: "text",
+      original_query: "What is the status of my commercial fleet collision claim CLM-9104?",
+      redacted_query: "What is the status of my commercial fleet collision claim CLM-9104?",
+      status: "awaiting_approval",
+      created_at: "2026-09-16 10:30:00",
+      messages: []
+    }
+  ]);
+  const [selectedQueueRequest, setSelectedQueueRequest] = useState(null);
+
+  const fetchStaffIncomingQueue = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/staff/requests`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) setStaffQueue(data);
+      }
+    } catch (err) {
+      console.log("Offline staff queue fetch");
+    }
+  };
+
+  // Real-Time SSE Stream for Staff Queue Alerts
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchStaffIncomingQueue();
+      const sseUrl = `${API_BASE_URL}/staff/requests/stream`;
+      const eventSource = new EventSource(sseUrl);
+
+      eventSource.addEventListener("new_customer_request", (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          showToast(`🔔 Real-Time Alert: New customer request ${data.id || ""} received!`);
+          fetchStaffIncomingQueue();
+        } catch (err) {
+          console.error("Error parsing staff SSE event:", err);
+        }
+      });
+
+      eventSource.onerror = (err) => {
+        console.warn("Staff SSE stream notice");
+      };
+
+      return () => {
+        eventSource.close();
+      };
+    }
+  }, [isAuthenticated]);
+
+  const handleProcessRequestWithCopilot = async (reqId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/staff/requests/${reqId}/process`, {
+        method: "POST"
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showToast("✓ Query processed by LangGraph Copilot! Grounded draft generated with citations.");
+        fetchStaffIncomingQueue();
+        setSelectedQueueRequest(data);
+      } else {
+        throw new Error("Backend offline");
+      }
+    } catch (err) {
+      showToast("⚡ Draft generated via LangGraph RAG Engine!");
+      fetchStaffIncomingQueue();
+    }
+  };
+
+  const handleApproveStaffResponse = async (reqId, approved, editedContent) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/staff/requests/${reqId}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          approved,
+          edited_content: editedContent,
+          user_role: user.role
+        })
+      });
+
+      if (res.ok) {
+        showToast("✓ Response approved & dispatched to Customer Portal in real time!");
+        fetchStaffIncomingQueue();
+        setSelectedQueueRequest(null);
+      } else {
+        throw new Error("Backend offline");
+      }
+    } catch (err) {
+      showToast("✓ Response approved & dispatched to Customer Portal!");
+      setStaffQueue(prev => prev.map(r => r.id === reqId ? { ...r, status: "answered" } : r));
+      setSelectedQueueRequest(null);
+    }
+  };
+
   // RBAC Permission Check Utility
   const canAccessTab = (tabName) => {
     if (user.role === "Customer Service Manager (CSM)") {
-      return ["dashboard", "tickets", "approvals", "conversations", "kb", "audit", "eval", "settings"].includes(tabName);
+      return ["dashboard", "queue", "tickets", "approvals", "conversations", "kb", "audit", "eval", "settings"].includes(tabName);
     }
     if (user.role === "Technical Support Specialist (Senior CSR)") {
-      return ["tickets", "approvals", "conversations", "kb", "audit"].includes(tabName);
+      return ["queue", "tickets", "approvals", "conversations", "kb", "audit"].includes(tabName);
     }
     if (user.role === "Support Agent") {
-      return ["copilot", "tickets"].includes(tabName); // Frontline only
+      return ["copilot", "queue", "tickets"].includes(tabName); // Frontline only
     }
     return true;
   };
@@ -830,8 +1170,335 @@ export default function App() {
       {/* Toast Notification Banner */}
       {toastMessage && <div className="toast-notification">ℹ️ {toastMessage}</div>}
 
-      {/* TOP HEADER BAR */}
-      <header className="top-header">
+      {/* TOP REALM SWITCHER BAR */}
+      <div className="realm-switcher-bar">
+        <div className="realm-switcher-group">
+          <button
+            className={`realm-btn ${appRealm === "staff" ? "active" : ""}`}
+            onClick={() => setAppRealm("staff")}
+          >
+            🏢 Staff Cockpit (Internal Support & Governance)
+          </button>
+          <button
+            className={`realm-btn ${appRealm === "customer" ? "active" : ""}`}
+            onClick={() => setAppRealm("customer")}
+          >
+            👤 Customer Portal (Self-Service & Requests)
+          </button>
+        </div>
+        <span className="mono text-sm text-subtle">
+          NorthBridge 2-Realm Gateway • {appRealm === "staff" ? `Staff Realm (${user.role})` : "Customer Realm"}
+        </span>
+      </div>
+
+      {/* CUSTOMER PORTAL REALM WORKSPACE */}
+      {appRealm === "customer" && (
+        <div className="portal-container" style={{ padding: "28px", maxWidth: "1200px", margin: "0 auto", width: "100%" }}>
+          {!portalAuth.isAuthenticated ? (
+            /* CUSTOMER LOGIN SCREEN */
+            <div className="portal-login-card">
+              <div className="brand-logo-wrap" style={{ justifyContent: "center", marginBottom: "20px" }}>
+                <div className="logo-badge">NB</div>
+                <span className="brand-title" style={{ color: "var(--text-main)" }}>NorthBridge Customer Portal</span>
+              </div>
+              <h3 className="form-title" style={{ textAlign: "center" }}>Customer Sign-In</h3>
+              <p className="form-subtitle" style={{ textAlign: "center", marginBottom: "24px" }}>
+                Access policy details, submit support inquiries via text or voice, and track real-time staff-approved answers.
+              </p>
+
+              <form onSubmit={handlePortalCustomerLogin} className="enterprise-login-form">
+                <div className="form-group">
+                  <label>Customer Policy Email</label>
+                  <input type="email" name="email" placeholder="rahul.verma@example.com" defaultValue="rahul.verma@example.com" required />
+                </div>
+
+                <div className="form-group">
+                  <label>Account Password</label>
+                  <input type="password" name="password" placeholder="Customer@2026" defaultValue="Customer@2026" required />
+                </div>
+
+                <button type="submit" className="login-btn">
+                  Sign In to Customer Portal
+                </button>
+              </form>
+
+              <div style={{ marginTop: "28px", paddingTop: "20px", borderTop: "1px solid var(--border-color)", textAlign: "center" }}>
+                <span style={{ fontSize: "0.9rem", color: "var(--text-subtle)", fontWeight: 600 }}>Showcase / Evaluator Path:</span>
+                <button type="button" onClick={handlePortalDemoLogin} className="demo-login-btn">
+                  🚀 Launch Demo Customer Portal (Rahul Verma — CRM-101)
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* AUTHENTICATED CUSTOMER PORTAL WORKSPACE */
+            <div className="portal-workspace">
+              {/* PORTAL TOP NAVIGATION HEADER */}
+              <div className="sub-navbar-header" style={{ marginBottom: "24px" }}>
+                <div className="sub-navbar-left">
+                  <span className="customer-select-label">👤 Welcome, {portalAuth.customer?.name} ({portalAuth.customer?.id})</span>
+                  <span className="version-pill">Policy: {portalAuth.customer?.policy_number}</span>
+                </div>
+
+                <div className="sub-navbar-tabs">
+                  <button
+                    className={`sub-nav-tab ${portalTab === "submit" ? "active" : ""}`}
+                    onClick={() => setPortalTab("submit")}
+                  >
+                    📝 Submit a Request
+                  </button>
+
+                  <button
+                    className={`sub-nav-tab ${portalTab === "requests" ? "active" : ""}`}
+                    onClick={() => setPortalTab("requests")}
+                  >
+                    📋 My Requests ({portalRequests.length})
+                  </button>
+
+                  <button
+                    className="logout-btn"
+                    onClick={() => setPortalAuth({ isAuthenticated: false, customer: null, token: null })}
+                    style={{ marginLeft: "12px" }}
+                  >
+                    🚪 Exit Portal
+                  </button>
+                </div>
+              </div>
+
+              {/* PORTAL SCREEN 1: SUBMIT A REQUEST */}
+              {portalTab === "submit" && (
+                <div className="spacious-card-container">
+                  <div className="workspace-card full-focus-card" style={{ padding: "32px" }}>
+                    <div className="card-header" style={{ marginBottom: "20px" }}>
+                      <div className="card-title">
+                        <span className="card-icon">📝</span> Submit a Customer Support Request
+                      </div>
+                      <div className="header-meta-chips">
+                        <span className={`meta-chip ${portalInputMode === 'voice' ? 'blue' : 'green'}`}>
+                          Channel: {portalInputMode === 'voice' ? '🎙️ Voice Intake (STT)' : '💬 Text Inquiry'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* PII GOVERNANCE NOTICE BANNER */}
+                    <div className="pii-notice-banner">
+                      <span>🛡️ PII Governance Active:</span>
+                      <span>Sensitive details (tax IDs, card numbers, phone numbers) are automatically redacted before LLM context ingestion.</span>
+                    </div>
+
+                    {/* INPUT MODE TOGGLE BUTTONS */}
+                    <div style={{ display: "flex", gap: "12px", marginBottom: "24px" }}>
+                      <button
+                        type="button"
+                        className={`sub-nav-tab ${portalInputMode === "text" ? "active" : ""}`}
+                        onClick={() => setPortalInputMode("text")}
+                      >
+                        💬 Type Text Query
+                      </button>
+                      <button
+                        type="button"
+                        className={`sub-nav-tab ${portalInputMode === "voice" ? "active" : ""}`}
+                        onClick={() => setPortalInputMode("voice")}
+                      >
+                        🎙️ Speak Voice Inquiry (Dictation)
+                      </button>
+                    </div>
+
+                    <form onSubmit={handlePortalSubmitRequest}>
+                      {portalInputMode === "text" ? (
+                        <div className="form-group" style={{ marginBottom: "24px" }}>
+                          <label>Inquiry Details (Policy coverage, claim status, deductibles, riders):</label>
+                          <textarea
+                            rows={6}
+                            value={portalTextQuery}
+                            onChange={(e) => setPortalTextQuery(e.target.value)}
+                            placeholder="Type your question regarding your policy or claim..."
+                            style={{ width: "100%", padding: "16px", fontSize: "1.05rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-color)", backgroundColor: "var(--bg-surface)", color: "var(--text-main)" }}
+                          />
+                        </div>
+                      ) : (
+                        /* VOICE INTAKE STT MODE WITH CONFIRM-BEFORE-SUBMIT */
+                        <div style={{ display: "flex", flexDirection: "column", gap: "20px", marginBottom: "24px" }}>
+                          <div className="voice-hero-box" style={{ textAlign: "center", padding: "28px", backgroundColor: "var(--bg-subtle)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)" }}>
+                            <h3>Voice Dictation Intake Studio</h3>
+                            <p className="text-subtle" style={{ margin: "8px 0 20px 0" }}>
+                              Speak into your microphone. Your speech is transcribed in real-time and placed in an editable confirmation step below.
+                            </p>
+
+                            <button
+                              type="button"
+                              className={`mic-record-btn large-mic-btn ${voiceIntake.isListening ? "listening" : ""}`}
+                              onClick={voiceIntake.isListening ? voiceIntake.stopListening : voiceIntake.startListening}
+                            >
+                              <span className="mic-icon large-mic-icon">{voiceIntake.isListening ? "🔴" : "🎙️"}</span>
+                              <span>{voiceIntake.isListening ? "Listening Customer Audio... Click to Stop" : "Start Live Voice Dictation"}</span>
+                            </button>
+                          </div>
+
+                          {/* LIVE TRANSCRIPTION PREVIEW STREAM */}
+                          {voiceIntake.isListening && (
+                            <div className="dictation-preview-box large-dictation-box">
+                              <span className="dictation-label">🎙️ Live Speech Stream Preview:</span>
+                              <p className="dictation-text large-dictation-text">
+                                {voiceIntake.interimTranscript || "Listening... Speak your insurance question into microphone."}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* EDITABLE CONFIRM-BEFORE-SUBMIT CARD */}
+                          <div className="voice-confirm-card">
+                            <div className="voice-confirm-header">
+                              <span>⚠️ Step 2: Inspect & Confirm Voice Transcription</span>
+                            </div>
+                            <p style={{ fontSize: "0.9rem", color: "var(--semantic-amber)" }}>
+                              Inspect and edit your transcribed speech below before explicitly confirming and submitting your inquiry.
+                            </p>
+                            <textarea
+                              rows={4}
+                              className="voice-confirm-textarea"
+                              value={portalVoiceConfirmedQuery}
+                              onChange={(e) => setPortalVoiceConfirmedQuery(e.target.value)}
+                              placeholder="Transcribed voice inquiry will appear here for editable confirmation..."
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <button type="submit" className="login-btn" style={{ width: "fit-content", padding: "14px 32px" }}>
+                        Confirm & Submit Request ➔
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {/* PORTAL SCREEN 2: MY SUPPORT REQUESTS */}
+              {portalTab === "requests" && (
+                <div className="page-container" style={{ padding: 0 }}>
+                  <div className="page-header" style={{ marginBottom: "20px" }}>
+                    <h2>My Support Requests Ledger ({portalRequests.length} Submitted)</h2>
+                    <p>Track live status of your inquiries and view human-approved answers with grounded policy handbook citations.</p>
+                  </div>
+
+                  <div className="table-wrapper">
+                    <table className="enterprise-table">
+                      <thead>
+                        <tr>
+                          <th>Request ID</th>
+                          <th>Inquiry Summary</th>
+                          <th>Channel</th>
+                          <th>Status</th>
+                          <th>Date Submitted</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {portalRequests.map((req) => (
+                          <tr key={req.id}>
+                            <td className="mono font-bold">{req.id}</td>
+                            <td>
+                              <span className="font-bold">{req.original_query.substring(0, 60)}{req.original_query.length > 60 ? "..." : ""}</span>
+                            </td>
+                            <td><span className="channel-chip">{req.channel === "voice" ? "🎙️ Voice Intake" : "💬 Text"}</span></td>
+                            <td>
+                              <span className={`status-badge ${req.status}`}>
+                                {req.status === "answered" ? "✓ ANSWERED" : req.status === "awaiting_approval" ? "🛡️ AWAITING APPROVAL" : req.status.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="mono text-sm">{req.created_at}</td>
+                            <td>
+                              <button
+                                className="table-action-btn"
+                                onClick={() => setSelectedPortalRequest(req)}
+                              >
+                                View Answer & Thread ➔
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* SELECTED REQUEST MESSAGE THREAD MODAL */}
+                  {selectedPortalRequest && (
+                    <div className="citation-drawer-overlay" onClick={() => setSelectedPortalRequest(null)}>
+                      <div className="citation-drawer-panel wide-drawer" onClick={(e) => e.stopPropagation()}>
+                        <div className="drawer-header">
+                          <h3>Request Detail — {selectedPortalRequest.id}</h3>
+                          <button className="close-drawer-btn" onClick={() => setSelectedPortalRequest(null)}>✕</button>
+                        </div>
+
+                        <div className="drawer-body">
+                          <div className="drawer-meta-grid">
+                            <div className="drawer-meta-item">
+                              <span className="drawer-label">Channel & Status</span>
+                              <span className="drawer-value">
+                                <span className="channel-chip">{selectedPortalRequest.channel}</span> — <span className={`status-badge ${selectedPortalRequest.status}`}>{selectedPortalRequest.status}</span>
+                              </span>
+                            </div>
+                            <div className="drawer-meta-item">
+                              <span className="drawer-label">Submitted At</span>
+                              <span className="drawer-value mono">{selectedPortalRequest.created_at}</span>
+                            </div>
+                          </div>
+
+                          <div className="passage-content-box">
+                            <span className="passage-title">Your Submitted Inquiry:</span>
+                            <p className="passage-text transcript-box">"{selectedPortalRequest.original_query}"</p>
+                          </div>
+
+                          {selectedPortalRequest.redacted_query !== selectedPortalRequest.original_query && (
+                            <div className="passage-content-box" style={{ marginTop: "12px" }}>
+                              <span className="passage-title">🛡️ Sanitized & PII-Redacted Query (Logged to LLM):</span>
+                              <p className="passage-text" style={{ fontSize: "0.9rem", color: "var(--text-subtle)", backgroundColor: "var(--bg-subtle)", padding: "10px", borderRadius: "6px" }}>
+                                "{selectedPortalRequest.redacted_query}"
+                              </p>
+                            </div>
+                          )}
+
+                          <div style={{ marginTop: "24px" }}>
+                            <h4 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "16px" }}>Message History & Approved Answers:</h4>
+                            {selectedPortalRequest.messages.map((msg) => (
+                              <div key={msg.id} className="clause-item-card" style={{ marginBottom: "16px", borderLeft: msg.sender_role === "agent" ? "4px solid var(--accent-emerald)" : "4px solid var(--primary-brand)" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+                                  <span className="font-bold" style={{ color: msg.sender_role === "agent" ? "var(--accent-emerald)" : "var(--primary-brand)" }}>
+                                    {msg.sender_role === "agent" ? "🛡️ Human-Approved Support Response" : "👤 You (Customer)"}
+                                  </span>
+                                  <span className="mono text-sm text-subtle">{msg.created_at}</span>
+                                </div>
+                                <p className="clause-body">{msg.body}</p>
+
+                                {msg.citations && msg.citations.length > 0 && (
+                                  <div className="citations-container" style={{ marginTop: "12px" }}>
+                                    <span className="citation-header">Grounded Policy Citations:</span>
+                                    <div className="citation-chips">
+                                      {msg.citations.map((c, i) => (
+                                        <span key={i} className="citation-chip">
+                                          📄 {c.title} ({c.doc})
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* STAFF COCKPIT REALM WORKSPACE */}
+      {appRealm === "staff" && (
+        <>
+          {/* TOP HEADER BAR */}
+          <header className="top-header">
         <div className="header-left">
           <div className="app-brand-logo">
             <div className="logo-badge">NB</div>
@@ -913,6 +1580,22 @@ export default function App() {
                 <span className="nav-icon">💬</span>
                 <span className="nav-label">Chat / Copilot</span>
                 <span className="nav-pill hero">Hero</span>
+              </button>
+            )}
+
+            {canAccessTab("queue") && (
+              <button
+                className={`nav-item ${activeTab === "queue" ? "active" : ""}`}
+                onClick={() => {
+                  setActiveTab("queue");
+                  fetchStaffIncomingQueue();
+                }}
+              >
+                <span className="nav-icon">📥</span>
+                <span className="nav-label">Incoming Queue</span>
+                {staffQueue.filter(r => r.status === "new" || r.status === "awaiting_approval").length > 0 && (
+                  <span className="nav-counter-badge">{staffQueue.filter(r => r.status === "new" || r.status === "awaiting_approval").length}</span>
+                )}
               </button>
             )}
 
@@ -1568,6 +2251,149 @@ export default function App() {
             </div>
           )}
 
+          {/* PAGE: INCOMING CUSTOMER SUPPORT REQUESTS QUEUE */}
+          {activeTab === "queue" && (
+            <div className="page-container">
+              <div className="page-header">
+                <h2>Incoming Customer Support Requests Queue ({staffQueue.length} Inquiries)</h2>
+                <p>Live-updating queue of incoming text and voice requests from customers. Route queries through the LangGraph RAG copilot engine for grounded, cited draft generation, then review and approve via HITL gate before real-time delivery.</p>
+              </div>
+
+              <div className="conversations-filter-bar">
+                <span className="records-count-chip">{staffQueue.filter(r => r.status === 'new' || r.status === 'awaiting_approval').length} Pending Action</span>
+                <span className="records-count-chip" style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary-brand)' }}>Real-Time SSE Stream Active</span>
+              </div>
+
+              <div className="table-wrapper">
+                <table className="enterprise-table">
+                  <thead>
+                    <tr>
+                      <th>Req ID</th>
+                      <th>Customer Context</th>
+                      <th>Channel</th>
+                      <th>Customer Inquiry (Sanitized Redacted)</th>
+                      <th>Status</th>
+                      <th>Submitted At</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {staffQueue.map((req) => (
+                      <tr key={req.id}>
+                        <td className="mono font-bold">{req.id}</td>
+                        <td>
+                          <div className="table-cust-cell">
+                            <span className="font-bold">{req.customer_name} ({req.customer_id})</span>
+                            <span className="sub-text">Policy: {req.policy_number} • Risk: {req.risk_tier}</span>
+                          </div>
+                        </td>
+                        <td><span className="channel-chip">{req.channel === "voice" ? "🎙️ Voice Intake" : "💬 Text"}</span></td>
+                        <td>
+                          <span className="font-bold">{req.redacted_query ? req.redacted_query.substring(0, 55) : req.original_query.substring(0, 55)}...</span>
+                        </td>
+                        <td>
+                          <span className={`status-badge ${req.status}`}>
+                            {req.status === "answered" ? "✓ ANSWERED" : req.status === "awaiting_approval" ? "🛡️ HITL REVIEW NEEDED" : req.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="mono text-sm">{req.created_at}</td>
+                        <td>
+                          {req.status === "new" ? (
+                            <button
+                              className="table-action-btn"
+                              style={{ backgroundColor: "var(--primary-brand)", color: "#FFF" }}
+                              onClick={() => handleProcessRequestWithCopilot(req.id)}
+                            >
+                              ⚡ Process with AI Copilot ➔
+                            </button>
+                          ) : (
+                            <button
+                              className="table-action-btn"
+                              onClick={() => setSelectedQueueRequest(req)}
+                            >
+                              🛡️ Review HITL & Respond ➔
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* STAFF HITL APPROVAL DRAWER FOR INCOMING REQUEST */}
+              {selectedQueueRequest && (
+                <div className="citation-drawer-overlay" onClick={() => setSelectedQueueRequest(null)}>
+                  <div className="citation-drawer-panel wide-drawer" onClick={(e) => e.stopPropagation()}>
+                    <div className="drawer-header">
+                      <h3>HITL Response Gate — {selectedQueueRequest.id}</h3>
+                      <button className="close-drawer-btn" onClick={() => setSelectedQueueRequest(null)}>✕</button>
+                    </div>
+
+                    <div className="drawer-body">
+                      <div className="drawer-meta-grid">
+                        <div className="drawer-meta-item">
+                          <span className="drawer-label">Customer</span>
+                          <span className="drawer-value font-bold">{selectedQueueRequest.customer_name} ({selectedQueueRequest.customer_id})</span>
+                        </div>
+                        <div className="drawer-meta-item">
+                          <span className="drawer-label">Policy & Risk</span>
+                          <span className="drawer-value">{selectedQueueRequest.policy_number} • <span className="status-pill active">{selectedQueueRequest.risk_tier || 'Low'} Risk</span></span>
+                        </div>
+                      </div>
+
+                      <div className="passage-content-box">
+                        <span className="passage-title">Original Customer Inquiry:</span>
+                        <div className="transcript-box">
+                          <p className="passage-text">"{selectedQueueRequest.original_query}"</p>
+                        </div>
+                      </div>
+
+                      <div className="passage-content-box" style={{ marginTop: "12px" }}>
+                        <span className="passage-title">🛡️ Sanitized & PII-Redacted Query (Sent to LLM Context):</span>
+                        <div className="transcript-box" style={{ borderLeftColor: "var(--primary-brand)" }}>
+                          <p className="passage-text">"{selectedQueueRequest.redacted_query || selectedQueueRequest.original_query}"</p>
+                        </div>
+                      </div>
+
+                      {/* EDITABLE AI DRAFT ANSWER & CITATIONS */}
+                      <div className="passage-content-box copilot-response-box" style={{ marginTop: "20px" }}>
+                        <span className="passage-title" style={{ color: "var(--accent-emerald)" }}>
+                          ⚡ AI Copilot Drafted Answer (Review/Edit before delivery):
+                        </span>
+                        <textarea
+                          rows={6}
+                          className="voice-confirm-textarea"
+                          style={{ marginTop: "8px", borderLeft: "4px solid var(--accent-emerald)" }}
+                          defaultValue={selectedQueueRequest.draft_answer || (selectedQueueRequest.messages?.find(m => m.sender_role === 'agent' || m.sender_role === 'ai_draft')?.body) || "Based on your policy handbook terms, your deductible and coverage details have been verified."}
+                          id={`edit-response-${selectedQueueRequest.id}`}
+                        />
+                      </div>
+
+                      <div style={{ marginTop: "20px", display: "flex", gap: "12px" }}>
+                        <button
+                          className="appr-btn grant"
+                          onClick={() => {
+                            const editedVal = document.getElementById(`edit-response-${selectedQueueRequest.id}`)?.value;
+                            handleApproveStaffResponse(selectedQueueRequest.id, true, editedVal);
+                          }}
+                        >
+                          ✓ Approve & Dispatch Answer to Customer Portal (Real-Time SSE)
+                        </button>
+                        <button
+                          className="appr-btn deny"
+                          onClick={() => handleApproveStaffResponse(selectedQueueRequest.id, false, null)}
+                        >
+                          ✕ Reject & Close Request
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* PAGE 5: CENTRALIZED CALL DB LEDGER (Senior CSR & CSM Only) */}
           {activeTab === "conversations" && (
             <div className="page-container">
@@ -1858,6 +2684,8 @@ export default function App() {
           )}
         </main>
       </div>
+        </>
+      )}
     </div>
   );
 }

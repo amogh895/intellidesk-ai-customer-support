@@ -9,7 +9,7 @@ class CustomerModel(Base):
 
     id = Column(String, primary_key=True, index=True) # e.g. CRM-101
     name = Column(String, nullable=False)
-    email = Column(String, nullable=False)
+    email = Column(String, nullable=False, index=True)
     phone = Column(String, nullable=False)
     policy_number = Column(String, nullable=False, index=True)
     policy_type = Column(String, nullable=False)
@@ -17,8 +17,38 @@ class CustomerModel(Base):
     premium = Column(Float, default=15000.0)
     risk_tier = Column(String, default="Low")
     coverage_details = Column(Text, nullable=False)
+    hashed_password = Column(String, nullable=True)
 
     claims = relationship("ClaimModel", back_populates="customer", cascade="all, delete-orphan")
+    support_requests = relationship("SupportRequestModel", back_populates="customer", cascade="all, delete-orphan")
+
+class SupportRequestModel(Base):
+    __tablename__ = "support_requests"
+
+    id = Column(String, primary_key=True, index=True) # e.g. REQ-2026-001
+    customer_id = Column(String, ForeignKey("customers.id"), nullable=False, index=True)
+    channel = Column(String, default="text") # 'text' | 'voice'
+    original_query = Column(Text, nullable=False)
+    redacted_query = Column(Text, nullable=False)
+    status = Column(String, default="new", index=True) # 'new'|'in_progress'|'awaiting_approval'|'answered'|'closed'
+    assigned_agent_id = Column(String, nullable=True)
+    created_at = Column(String, default=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    updated_at = Column(String, default=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+    customer = relationship("CustomerModel", back_populates="support_requests")
+    messages = relationship("RequestMessageModel", back_populates="request", cascade="all, delete-orphan")
+
+class RequestMessageModel(Base):
+    __tablename__ = "request_messages"
+
+    id = Column(String, primary_key=True, index=True) # e.g. MSG-9001
+    request_id = Column(String, ForeignKey("support_requests.id"), nullable=False, index=True)
+    sender_role = Column(String, nullable=False) # 'customer'|'agent'|'ai_draft'
+    body = Column(Text, nullable=False)
+    citations = Column(JSON, nullable=True)
+    created_at = Column(String, default=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+    request = relationship("SupportRequestModel", back_populates="messages")
 
 class PolicyModel(Base):
     __tablename__ = "policies"

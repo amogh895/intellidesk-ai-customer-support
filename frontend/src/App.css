@@ -376,3 +376,123 @@ body {
   margin-top: 20px;
 }
 
+/* CUSTOMER PORTAL STYLES */
+.realm-switcher-bar {
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border-color);
+  padding: 10px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--shadow-sm);
+  z-index: 101;
+}
+
+.realm-switcher-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.realm-btn {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.realm-btn.active {
+  background-color: var(--primary-brand);
+  color: #FFFFFF;
+  border-color: var(--primary-brand);
+}
+
+.portal-login-card {
+  max-width: 520px;
+  margin: 60px auto;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 40px;
+  box-shadow: var(--shadow-lg);
+}
+
+.demo-login-btn {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: #FFFFFF;
+  border: none;
+  padding: 14px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 16px;
+  box-shadow: var(--shadow-md);
+}
+
+.pii-notice-banner {
+  background-color: var(--primary-light);
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--primary-brand);
+  padding: 12px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  color: var(--primary-brand);
+  font-weight: 600;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.voice-confirm-card {
+  background-color: var(--amber-bg);
+  border: 1px solid var(--semantic-amber);
+  border-radius: var(--radius-sm);
+  padding: 18px;
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.voice-confirm-header {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--semantic-amber);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.voice-confirm-textarea {
+  width: 100%;
+  padding: 12px;
+  font-size: 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-surface);
+  color: var(--text-main);
+  line-height: 1.5;
+}
+
+.status-badge {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  display: inline-block;
+}
+.status-badge.new { background-color: #DBEAFE; color: #1E40AF; }
+.status-badge.in_progress { background-color: #FEF3C7; color: #92400E; }
+.status-badge.awaiting_approval { background-color: #FEE2E2; color: #991B1B; }
+.status-badge.answered { background-color: #D1FAE5; color: #065F46; }
+.status-badge.closed { background-color: #E2E8F0; color: #475569; }
+
+

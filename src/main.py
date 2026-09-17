@@ -9,8 +9,15 @@ import json
 import asyncio
 
 from src.db_pg import get_db, init_db
-from src.models import CustomerModel, PolicyModel, ClaimModel, TicketModel, ApprovalQueueModel, AuditLogModel, PolicyChunkModel, EvaluationMetricModel, CustomerConversationModel
+from src.models import (
+    CustomerModel, PolicyModel, ClaimModel, TicketModel, ApprovalQueueModel,
+    AuditLogModel, PolicyChunkModel, EvaluationMetricModel, CustomerConversationModel,
+    SupportRequestModel, RequestMessageModel
+)
 from src.agent.real_graph import real_agent_graph
+from src.auth import create_access_token, verify_password, get_current_customer, get_current_staff
+from src.pii import redact_pii
+from src.sse_manager import sse_broadcaster
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("intellidesk")
@@ -41,6 +48,10 @@ class LoginRequest(BaseModel):
     password: str
     role: Optional[str] = "Customer Service Manager (CSM)"
 
+class CustomerLoginRequest(BaseModel):
+    email: str
+    password: str
+
 class QueryRequest(BaseModel):
     query: str
     thread_id: Optional[str] = None
@@ -60,7 +71,7 @@ def read_root():
         "status": "online",
         "service": "IntelliDesk Real Agentic Backend Gateway",
         "database": "PostgreSQL + pgvector Engine",
-        "version": "2.4.0"
+        "version": "2.5.0"
     }
 
 @app.get("/health")
@@ -74,18 +85,450 @@ def health_check(db=Depends(get_db)):
         "customers_seeded": customer_count
     }
 
-# ─── AUTHENTICATION ───
+# ─── 2-REALM AUTHENTICATION ───
+
+# 1. Staff Realm Authentication
 @app.post("/api/auth/login")
 async def login(req: LoginRequest):
+    """Staff Realm Login — Returns Staff JWT Token"""
+    role_name = req.role or "Customer Service Manager (CSM)"
+    token = create_access_token({"sub": req.email, "role": role_name, "realm": "staff"})
     return {
-        "access_token": "bearer_token_" + uuid.uuid4().hex[:12],
+        "access_token": token,
         "token_type": "bearer",
         "user": {
             "name": req.email.split("@")[0].replace(".", " ").title(),
             "email": req.email,
-            "role": req.role or "Customer Service Manager (CSM)"
+            "role": role_name,
+            "realm": "staff"
         }
     }
+
+# 2. Customer Realm Authentication
+@app.post("/api/portal/auth/login")
+async def customer_login(req: CustomerLoginRequest, db=Depends(get_db)):
+    """Customer Realm Login — Authenticates Customer against Hashed Password and Returns Customer JWT Token"""
+    customer = db.query(CustomerModel).filter(CustomerModel.email.ilike(req.email.strip())).first()
+    if not customer:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials: Customer account not found for provided email."
+        )
+
+    if customer.hashed_password and not verify_password(req.password, customer.hashed_password):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials: Password verification failed."
+        )
+
+    token = create_access_token({
+        "sub": customer.id,
+        "email": customer.email,
+        "name": customer.name,
+        "realm": "customer"
+    })
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "customer": {
+            "id": customer.id,
+            "name": customer.name,
+            "email": customer.email,
+            "phone": customer.phone,
+            "policy_number": customer.policy_number,
+            "policy_type": customer.policy_type,
+            "risk_tier": customer.risk_tier,
+            "realm": "customer"
+        }
+    }
+
+# 3. Read-Only Demo Customer Showcase Login Path
+@app.post("/api/portal/auth/demo-login")
+async def demo_customer_login(db=Depends(get_db)):
+    """Showcase Read-Only Demo Customer Login Path for CRM-101 (Rahul Verma)"""
+    customer = db.query(CustomerModel).filter(CustomerModel.id == "CRM-101").first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Demo customer CRM-101 not found.")
+
+    token = create_access_token({
+        "sub": customer.id,
+        "email": customer.email,
+        "name": customer.name,
+        "realm": "customer"
+    })
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "customer": {
+            "id": customer.id,
+            "name": customer.name,
+            "email": customer.email,
+            "phone": customer.phone,
+            "policy_number": customer.policy_number,
+            "policy_type": customer.policy_type,
+            "risk_tier": customer.risk_tier,
+            "realm": "customer",
+            "is_demo": True
+        }
+    }
+
+# ─── CUSTOMER PORTAL SUPPORT REQUEST ENDPOINTS ───
+
+class CreateSupportRequestInput(BaseModel):
+    query: str
+    channel: Optional[str] = "text" # 'text' | 'voice'
+
+@app.get("/api/portal/requests")
+async def get_customer_requests(
+    current_customer: CustomerModel = Depends(get_current_customer),
+    db=Depends(get_db)
+):
+    """
+    Returns list of support requests submitted by the authenticated customer only.
+    Strict Role Isolation: Enforces customer_id == current_customer.id.
+    """
+    requests = db.query(SupportRequestModel).filter(
+        SupportRequestModel.customer_id == current_customer.id
+    ).order_by(SupportRequestModel.created_at.desc()).all()
+
+    result = []
+    for req in requests:
+        msgs = db.query(RequestMessageModel).filter(
+            RequestMessageModel.request_id == req.id
+        ).order_by(RequestMessageModel.created_at.asc()).all()
+
+        result.append({
+            "id": req.id,
+            "customer_id": req.customer_id,
+            "customer_name": current_customer.name,
+            "policy_number": current_customer.policy_number,
+            "channel": req.channel,
+            "original_query": req.original_query,
+            "redacted_query": req.redacted_query,
+            "status": req.status,
+            "assigned_agent_id": req.assigned_agent_id,
+            "created_at": req.created_at,
+            "updated_at": req.updated_at,
+            "messages": [
+                {
+                    "id": m.id,
+                    "sender_role": m.sender_role,
+                    "body": m.body,
+                    "citations": m.citations,
+                    "created_at": m.created_at
+                }
+                for m in msgs
+            ]
+        })
+
+    return result
+
+@app.post("/api/portal/requests")
+async def create_support_request(
+    body: CreateSupportRequestInput,
+    current_customer: CustomerModel = Depends(get_current_customer),
+    db=Depends(get_db)
+):
+    """
+    Submits a new customer support request (text or voice intake).
+    Applies PII redaction layer before database persistence and LLM context ingestion.
+    """
+    if not body.query or not body.query.strip():
+        raise HTTPException(status_code=400, detail="Query text cannot be empty.")
+
+    redacted = redact_pii(body.query.strip())
+    req_id = f"REQ-2026-{uuid.uuid4().hex[:6].upper()}"
+
+    new_req = SupportRequestModel(
+        id=req_id,
+        customer_id=current_customer.id,
+        channel=body.channel or "text",
+        original_query=body.query.strip(),
+        redacted_query=redacted,
+        status="new"
+    )
+    db.add(new_req)
+
+    msg_id = f"MSG-{uuid.uuid4().hex[:6].upper()}"
+    new_msg = RequestMessageModel(
+        id=msg_id,
+        request_id=req_id,
+        sender_role="customer",
+        body=body.query.strip()
+    )
+    db.add(new_msg)
+    db.commit()
+
+    # Broadcast real-time event to connected Staff Incoming Queue streams
+    await sse_broadcaster.broadcast_to_staff(
+        "new_customer_request",
+        {
+            "id": new_req.id,
+            "customer_id": new_req.customer_id,
+            "customer_name": current_customer.name,
+            "policy_number": current_customer.policy_number,
+            "channel": new_req.channel,
+            "original_query": new_req.original_query,
+            "redacted_query": redacted,
+            "status": new_req.status,
+            "created_at": new_req.created_at
+        }
+    )
+
+    return {
+        "status": "success",
+        "message": "Support request submitted successfully and queued for staff review.",
+        "request": {
+            "id": new_req.id,
+            "customer_id": new_req.customer_id,
+            "channel": new_req.channel,
+            "original_query": new_req.original_query,
+            "redacted_query": new_req.redacted_query,
+            "status": new_req.status,
+            "created_at": new_req.created_at
+        }
+    }
+
+# ─── REAL-TIME SSE STREAMING ENDPOINTS FOR PORTAL & STAFF QUEUE ───
+
+@app.get("/api/staff/requests/stream")
+async def stream_staff_requests():
+    """
+    Server-Sent Events (SSE) stream for Staff Incoming Queue.
+    Pushes real-time notifications when customers submit new support requests.
+    Includes periodic keep-alive heartbeat ping events.
+    """
+    q = sse_broadcaster.subscribe_staff()
+
+    async def event_generator():
+        try:
+            yield "event: connected\ndata: {\"status\":\"connected\",\"stream\":\"staff_queue\"}\n\n"
+            while True:
+                try:
+                    payload = await asyncio.wait_for(q.get(), timeout=15.0)
+                    event_type = payload.get("event", "message")
+                    event_data = json.dumps(payload.get("data", {}))
+                    yield f"event: {event_type}\ndata: {event_data}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            sse_broadcaster.unsubscribe_staff(q)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+@app.get("/api/portal/requests/stream")
+async def stream_customer_requests(customer_id: str = Query(...)):
+    """
+    Server-Sent Events (SSE) stream for Customer Portal.
+    Pushes real-time updates when staff approves an answer for customer's request.
+    """
+    if not customer_id:
+        raise HTTPException(status_code=400, detail="customer_id query param required.")
+
+    q = sse_broadcaster.subscribe_customer(customer_id)
+
+    async def event_generator():
+        try:
+            yield f"event: connected\ndata: {{\"status\":\"connected\",\"customer_id\":\"{customer_id}\"}}\n\n"
+            while True:
+                try:
+                    payload = await asyncio.wait_for(q.get(), timeout=15.0)
+                    event_type = payload.get("event", "message")
+                    event_data = json.dumps(payload.get("data", {}))
+                    yield f"event: {event_type}\ndata: {event_data}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            sse_broadcaster.unsubscribe_customer(customer_id, q)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+# ─── STAFF INCOMING QUEUE & HITL BRIDGE ENDPOINTS ───
+
+class ApproveStaffRequestInput(BaseModel):
+    approved: bool = True
+    edited_content: Optional[str] = None
+    user_role: Optional[str] = "Customer Service Manager (CSM)"
+
+@app.get("/api/staff/requests")
+async def get_staff_incoming_queue(db=Depends(get_db)):
+    """
+    Returns all customer support requests across all 200 customers for Staff Queue processing.
+    Ordered by priority (new/awaiting approval first, then by timestamp).
+    """
+    requests = db.query(SupportRequestModel).order_by(
+        SupportRequestModel.status.asc(),
+        SupportRequestModel.created_at.desc()
+    ).all()
+
+    result = []
+    for req in requests:
+        cust = db.query(CustomerModel).filter(CustomerModel.id == req.customer_id).first()
+        msgs = db.query(RequestMessageModel).filter(
+            RequestMessageModel.request_id == req.id
+        ).order_by(RequestMessageModel.created_at.asc()).all()
+
+        result.append({
+            "id": req.id,
+            "customer_id": req.customer_id,
+            "customer_name": cust.name if cust else "Unknown Customer",
+            "policy_number": cust.policy_number if cust else "N/A",
+            "risk_tier": cust.risk_tier if cust else "Low",
+            "channel": req.channel,
+            "original_query": req.original_query,
+            "redacted_query": req.redacted_query,
+            "status": req.status,
+            "assigned_agent_id": req.assigned_agent_id,
+            "created_at": req.created_at,
+            "updated_at": req.updated_at,
+            "messages": [
+                {
+                    "id": m.id,
+                    "sender_role": m.sender_role,
+                    "body": m.body,
+                    "citations": m.citations,
+                    "created_at": m.created_at
+                }
+                for m in msgs
+            ]
+        })
+
+    return result
+
+@app.post("/api/staff/requests/{request_id}/process")
+async def process_customer_request_with_copilot(
+    request_id: str,
+    db=Depends(get_db)
+):
+    """
+    Routes customer request into EXISTING LangGraph Multi-Agent Copilot Graph.
+    Generates grounded cited draft answer and creates HITL approval gate entry.
+    """
+    req = db.query(SupportRequestModel).filter(SupportRequestModel.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail=f"Support request '{request_id}' not found.")
+
+    cust = db.query(CustomerModel).filter(CustomerModel.id == req.customer_id).first()
+
+    # Route sanitized query through existing LangGraph RAG copilot engine
+    graph_res = real_agent_graph.process_query(
+        query=req.redacted_query,
+        customer_id=req.customer_id
+    )
+
+    draft_answer = graph_res.get("response", "")
+    citations = graph_res.get("citations", [])
+
+    req.status = "awaiting_approval"
+    req.updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Save draft message in thread
+    ai_msg_id = f"MSG-{uuid.uuid4().hex[:6].upper()}"
+    ai_msg = RequestMessageModel(
+        id=ai_msg_id,
+        request_id=req.id,
+        sender_role="ai_draft",
+        body=draft_answer,
+        citations=citations
+    )
+    db.add(ai_msg)
+    db.commit()
+
+    return {
+        "status": "success",
+        "request_id": req.id,
+        "request_status": "awaiting_approval",
+        "draft_answer": draft_answer,
+        "citations": citations,
+        "graph_response": graph_res
+    }
+
+@app.post("/api/staff/requests/{request_id}/approve")
+async def approve_and_dispatch_customer_request(
+    request_id: str,
+    body: ApproveStaffRequestInput,
+    db=Depends(get_db)
+):
+    """
+    Approves (or edits & approves) customer response via HITL gate.
+    Persists answer, updates status to 'answered', and dispatches real-time SSE event to customer portal.
+    """
+    req = db.query(SupportRequestModel).filter(SupportRequestModel.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail=f"Support request '{request_id}' not found.")
+
+    # Fetch latest ai_draft message
+    ai_draft_msg = db.query(RequestMessageModel).filter(
+        RequestMessageModel.request_id == req.id,
+        RequestMessageModel.sender_role == "ai_draft"
+    ).order_by(RequestMessageModel.created_at.desc()).first()
+
+    final_body = body.edited_content or (ai_draft_msg.body if ai_draft_msg else req.original_query)
+    citations = ai_draft_msg.citations if ai_draft_msg else []
+
+    if body.approved:
+        req.status = "answered"
+        req.updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        agent_msg_id = f"MSG-{uuid.uuid4().hex[:6].upper()}"
+        agent_msg = RequestMessageModel(
+            id=agent_msg_id,
+            request_id=req.id,
+            sender_role="agent",
+            body=final_body,
+            citations=citations
+        )
+        db.add(agent_msg)
+        db.commit()
+
+        # Dispatch real-time SSE push notification to Customer Portal
+        await sse_broadcaster.broadcast_to_customer(
+            req.customer_id,
+            "request_updated",
+            {
+                "id": req.id,
+                "status": "answered",
+                "answer_body": final_body,
+                "citations": citations,
+                "updated_at": req.updated_at
+            }
+        )
+
+        return {
+            "status": "success",
+            "message": "Answer approved and dispatched to Customer Portal in real time.",
+            "request_status": "answered",
+            "final_answer": final_body
+        }
+    else:
+        req.status = "closed"
+        db.commit()
+        return {
+            "status": "closed",
+            "message": "Request closed without dispatching answer."
+        }
 
 # ─── REAL AGENT QUERY & SSE CHAT STREAMING ───
 @app.post("/api/query")

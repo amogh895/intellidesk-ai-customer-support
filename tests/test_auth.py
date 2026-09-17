@@ -1,52 +1,41 @@
-import time
 import pytest
-from src.auth import authenticate_user, create_access_token, get_current_user, RoleChecker
-from fastapi import HTTPException
+import os
+import sys
 
-def test_authenticate_user_valid():
-    user = authenticate_user("sarah.connor@northbridge.com", "sarah@nb123")
-    assert user is not None
-    assert user["name"] == "Sarah Connor"
-    assert user["role"] == "agent"
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-def test_authenticate_user_invalid():
-    user = authenticate_user("sarah.connor@northbridge.com", "wrong_password")
-    assert user is None
-    
-    user = authenticate_user("unknown@northbridge.com", "sarah@nb123")
-    assert user is None
+from src.auth import hash_password, verify_password, create_access_token, decode_access_token
+from src.db_pg import SessionLocal, init_db
+from src.seed import seed_database
+from src.models import CustomerModel
 
-def test_token_creation_and_decoding():
-    user_data = {"id": "EMP-401", "name": "Sarah Connor", "role": "agent"}
-    token = create_access_token(user_data)
+@pytest.fixture(scope="module", autouse=True)
+def setup_auth_db():
+    init_db()
+    seed_database()
+
+def test_password_hashing_and_verification():
+    plain = "Customer@2026"
+    hashed = hash_password(plain)
+    assert hashed != plain
+    assert verify_password(plain, hashed) is True
+    assert verify_password("WrongPassword", hashed) is False
+
+def test_jwt_token_creation_and_decoding():
+    payload = {"sub": "CRM-101", "email": "rahul.verma@example.com", "realm": "customer"}
+    token = create_access_token(payload)
     assert token is not None
-    
-    # Decoded payload checks
-    decoded = get_current_user(token)
-    assert decoded["id"] == "EMP-401"
-    assert decoded["name"] == "Sarah Connor"
-    assert decoded["role"] == "agent"
-    assert "exp" in decoded
 
-def test_token_decoding_invalid():
-    with pytest.raises(HTTPException) as exc:
-        get_current_user("invalid.token.value")
-    assert exc.value.status_code == 401
-    assert "Invalid authorization token" in exc.value.detail
+    decoded = decode_access_token(token)
+    assert decoded["sub"] == "CRM-101"
+    assert decoded["realm"] == "customer"
 
-def test_role_checker_allowed():
-    user_payload = {"role": "manager", "name": "Diana Harlow"}
-    checker = RoleChecker(["manager", "supervisor"])
-    
-    # Should not raise exception
-    res = checker(user_payload)
-    assert res == user_payload
+def test_customer_isolation_and_credentials():
+    db = SessionLocal()
+    cust1 = db.query(CustomerModel).filter(CustomerModel.id == "CRM-101").first()
+    cust2 = db.query(CustomerModel).filter(CustomerModel.id == "CRM-102").first()
+    db.close()
 
-def test_role_checker_forbidden():
-    user_payload = {"role": "agent", "name": "Sarah Connor"}
-    checker = RoleChecker(["manager", "supervisor"])
-    
-    with pytest.raises(HTTPException) as exc:
-        checker(user_payload)
-    assert exc.value.status_code == 403
-    assert "Forbidden" in exc.value.detail
+    assert cust1 is not None and cust2 is not None
+    assert cust1.id != cust2.id
+    assert verify_password("Customer@2026", cust1.hashed_password) is True

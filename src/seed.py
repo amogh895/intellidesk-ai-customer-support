@@ -1,19 +1,31 @@
 import sys
 import os
 import random
+import bcrypt
 from faker import Faker
 from dotenv import load_dotenv
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.db_pg import SessionLocal, init_db
-from src.models import CustomerModel, PolicyModel, ClaimModel, TicketModel, ApprovalQueueModel, AuditLogModel, CustomerConversationModel, EvaluationMetricModel
+from src.models import (
+    CustomerModel, PolicyModel, ClaimModel, TicketModel,
+    ApprovalQueueModel, AuditLogModel, CustomerConversationModel,
+    EvaluationMetricModel, SupportRequestModel, RequestMessageModel
+)
 
 load_dotenv()
 
 fake = Faker()
 Faker.seed(42)
 random.seed(42)
+
+def hash_password(password: str = "Customer@2026") -> str:
+    pwd_bytes = password.encode('utf-8')[:72]
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
+
+DEFAULT_HASHED_PASSWORD = hash_password("Customer@2026")
 
 POLICY_TYPES = [
     "Comprehensive Private Car Policy",
@@ -53,15 +65,18 @@ def seed_database():
     db = SessionLocal()
 
     try:
-        # Check if already seeded
+        # Check if customer passwords & support requests exist
         existing_count = db.query(CustomerModel).count()
-        if existing_count >= 200:
-            print(f"Database already contains {existing_count} customers. Skipping re-seed.")
+        sample_cust = db.query(CustomerModel).first()
+        if existing_count >= 200 and sample_cust and sample_cust.hashed_password:
+            print(f"Database already contains {existing_count} customers with hashed passwords. Skipping re-seed.")
             return
 
-        print("Seeding ~200 internally-consistent Customer, Policy, Claim, Ticket, and Conversation records...")
+        print("Seeding ~200 Customer, Policy, Claim, Ticket, Support Request, and Conversation records...")
 
         # Clear tables cleanly
+        db.query(RequestMessageModel).delete()
+        db.query(SupportRequestModel).delete()
         db.query(CustomerConversationModel).delete()
         db.query(ClaimModel).delete()
         db.query(PolicyModel).delete()
@@ -81,7 +96,8 @@ def seed_database():
                 status="Active",
                 premium=18450.0,
                 risk_tier="Low",
-                coverage_details="Zero Depreciation, Engine Protect, Roadside Assistance, NCB 35%"
+                coverage_details="Zero Depreciation, Engine Protect, Roadside Assistance, NCB 35%",
+                hashed_password=DEFAULT_HASHED_PASSWORD
             ),
             CustomerModel(
                 id="CRM-102",
@@ -93,7 +109,8 @@ def seed_database():
                 status="Active",
                 premium=9200.0,
                 risk_tier="Medium",
-                coverage_details="Third Party Property Damage up to Rs 7.5 Lakhs, Fire & Theft"
+                coverage_details="Third Party Property Damage up to Rs 7.5 Lakhs, Fire & Theft",
+                hashed_password=DEFAULT_HASHED_PASSWORD
             ),
             CustomerModel(
                 id="CRM-103",
@@ -105,7 +122,8 @@ def seed_database():
                 status="Under Review",
                 premium=45000.0,
                 risk_tier="High",
-                coverage_details="Fleet Comprehensive, Goods In Transit Cover, Driver PA Rs 15L"
+                coverage_details="Fleet Comprehensive, Goods In Transit Cover, Driver PA Rs 15L",
+                hashed_password=DEFAULT_HASHED_PASSWORD
             )
         ]
 
@@ -178,7 +196,8 @@ def seed_database():
                 status="Active" if random.random() > 0.15 else "Under Review",
                 premium=prem,
                 risk_tier=risk,
-                coverage_details=cov
+                coverage_details=cov,
+                hashed_password=DEFAULT_HASHED_PASSWORD
             )
             db.add(cust)
 
@@ -251,6 +270,68 @@ def seed_database():
             compliance="SOC2 PASSED",
             details="Routed query to Policy RAG Agent. Top vector match: Clause 4 (Deductibles)."
         ))
+
+        # Seed initial Support Requests & Request Messages for demo customer CRM-101
+        req1 = SupportRequestModel(
+            id="REQ-2026-001",
+            customer_id="CRM-101",
+            channel="voice",
+            original_query="Hello, I had a minor parking scrape last night on my vehicle. What is the compulsory deductible for my policy POL-NB-2026-9921?",
+            redacted_query="Hello, I had a minor parking scrape last night on my vehicle. What is the compulsory deductible for my policy POL-NB-2026-9921?",
+            status="answered",
+            assigned_agent_id="STAFF-004",
+            created_at="2026-09-15 22:14:05",
+            updated_at="2026-09-15 22:15:30"
+        )
+        db.merge(req1)
+
+        msg1 = RequestMessageModel(
+            id="MSG-9001",
+            request_id="REQ-2026-001",
+            sender_role="customer",
+            body="Hello, I had a minor parking scrape last night on my vehicle. What is the compulsory deductible for my policy POL-NB-2026-9921?",
+            created_at="2026-09-15 22:14:05"
+        )
+        msg2 = RequestMessageModel(
+            id="MSG-9002",
+            request_id="REQ-2026-001",
+            sender_role="agent",
+            body="Based on your Comprehensive Private Car Policy (POL-NB-2026-9921), your compulsory deductible is Rs 1,000. However, because your account has the active Zero Depreciation Rider, replacement of bumper and body components will be covered without standard age depreciation.",
+            citations=[
+                {
+                    "id": 1,
+                    "title": "Clause 4: Deductibles & Compulsory Excess",
+                    "doc": "Vehicle_Insurance_Policy_Handbook_2026_2027.md",
+                    "snippet": "Compulsory deductible per accidental claim: Vehicles <= 1500cc: Rs 1,000.",
+                    "similarity": 0.942
+                }
+            ],
+            created_at="2026-09-15 22:15:30"
+        )
+        db.merge(msg1)
+        db.merge(msg2)
+
+        req2 = SupportRequestModel(
+            id="REQ-2026-002",
+            customer_id="CRM-103",
+            channel="text",
+            original_query="What is the status of my commercial fleet collision claim CLM-9104?",
+            redacted_query="What is the status of my commercial fleet collision claim CLM-9104?",
+            status="awaiting_approval",
+            assigned_agent_id=None,
+            created_at="2026-09-16 10:30:00",
+            updated_at="2026-09-16 10:30:00"
+        )
+        db.merge(req2)
+
+        msg3 = RequestMessageModel(
+            id="MSG-9003",
+            request_id="REQ-2026-002",
+            sender_role="customer",
+            body="What is the status of my commercial fleet collision claim CLM-9104?",
+            created_at="2026-09-16 10:30:00"
+        )
+        db.merge(msg3)
 
         db.commit()
         total_c = db.query(CustomerModel).count()

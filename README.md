@@ -1,41 +1,94 @@
-# IntelliDesk AI — Enterprise Agentic Support Copilot
+# IntelliDesk AI — Enterprise Two-Sided Agentic Support Platform
 
-IntelliDesk AI is an enterprise-grade agentic customer-support copilot built for insurance support staff, supervisors, and claims managers at **NorthBridge Assurance**.
-
----
-
-## Architecture & Real Backend Implementation
-
-All front-end mock data, static delays, fake citations, and hardcoded numbers have been replaced with a real Python FastAPI + PostgreSQL + pgvector backend powered by LangGraph.
-
-### What Was Mocked vs What Is Now Real
-
-| Feature Component | Initial Frontend State | Real Runtime Implementation |
-|---|---|---|
-| **Customer & CRM Records** | 3 hardcoded static arrays | Real database seeded with 200 Faker customer & policy records |
-| **Agent Reply Generator** | `setTimeout(1000ms)` mock string | Real LangGraph multi-agent orchestrator with pgvector RAG |
-| **Intent Router** | JS `if (includes('claim'))` keyword match | Real LangGraph Supervisor classifying intent & caller sentiment |
-| **Human Intervention & HITL** | Hardcoded client JS card | Real LangGraph interrupt checkpoints with **2-Level RBAC** authorization |
-| **Citations & Groundedness** | Hardcoded text & static similarity | Computed cosine similarity from pgvector chunks & faithfulness scores |
-| **Knowledge Base Stats** | Hardcoded 179 vectors | Real pgvector index reading **107 policy vector embeddings** |
-| **Audit Trail** | Static log array | Real append-only `audit_logs` database table |
-| **Evaluation Metrics** | Hardcoded RAGAS table | Real stored RAGAS metric benchmarks (Context Recall: 87.4%, Faithfulness: 92.1%) |
+IntelliDesk AI is a grounded, governed two-sided agentic customer support platform built for insurance customers and support staff (Support Agents, Senior CSRs, Claims Managers) at **NorthBridge Assurance**.
 
 ---
 
-## 2-Level RBAC Human Intervention Rules
+## Two-Sided System Architecture
 
-- **Level 1 (Support Supervisor)**: Authorized to approve standard low/medium risk requests (NCB overrides, rider endorsements, claims under ₹100,000).
-- **Level 2 (Claims Manager)**: Required for high-risk, high-value actions (claims payout ≥ ₹100,000, commercial fleet overrides, high-risk tier accounts).
-
----
-
-## One-Command Quickstart
-
-### 1. Launch PostgreSQL with pgvector (via Docker Compose)
-```bash
-docker-compose up -d
 ```
+┌─────────────────────────┐          ┌───────────────────────────┐
+│     Customer Portal     │          │       Staff Cockpit       │
+│  (Text / Voice Intake)  │          │ (Incoming Queue / Copilot)│
+└────────────┬────────────┘          └─────────────▲─────────────┘
+             │                                     │
+    POST /api/portal/requests          SSE /api/staff/requests/stream
+  (Text / Confirmed Voice)             (Real-Time Incoming Queue)
+             │                                     │
+             ▼                                     │
+┌─────────────────────────┐                        │
+│  PII Redaction Layer    │                        │
+└────────────┬────────────┘                        │
+             │                                     │
+             ▼                                     │
+┌─────────────────────────┐            ┌───────────┴───────────┐
+│ SupportRequest Database ├───────────►│ LangGraph RAG Agent   │
+└─────────────────────────┘            └───────────┬───────────┘
+             ▲                                     │
+             │                           Generates Cited Draft
+             │                                     │
+             │                         ┌───────────▼───────────┐
+             │                         │   HITL Approval Gate  │
+             │                         │   (Staff Review/Edit) │
+             │                         └───────────┬───────────┘
+             │                                     │
+     SSE /api/portal/stream               On Staff Approval
+   (Real-time Approved Reply)                      │
+             │                                     │
+             └─────────────────────────────────────┘
+```
+
+---
+
+## Key Feature Capabilities
+
+### 1. Customer Self-Service Portal (`/portal`)
+- **Dual Input Channels**: Text area query input + Voice Microphone Intake via browser WebSpeech STT.
+- **Confirm-Before-Submit Step**: Transcribed speech is automatically placed into an **editable confirmation box** so customers inspect and refine their query before submitting.
+- **PII Governance**: All customer queries pass through `src/pii.py` redacting emails, phone numbers, credit cards, and tax IDs before LLM context ingestion or logging.
+- **My Requests Ledger**: Tracks live status (`NEW`, `IN PROGRESS`, `AWAITING APPROVAL`, `ANSWERED`) and displays staff-approved answers with grounded policy citations.
+- **Demo Customer Login**: One-click showcase access path as Demo Customer `CRM-101` (Rahul Verma).
+
+### 2. 2-Realm Authentication & Role Isolation
+- **Customer Realm**: Authenticates against stored bcrypt password hashes. Scopes data strictly so customers can ONLY access their own requests.
+- **Staff Realm**: Enforces 3-tier RBAC (`Support Agent`, `Technical Support Specialist / Senior CSR`, `Customer Service Manager / CSM`).
+
+### 3. Real-Time SSE Pipeline
+- **Staff SSE Stream (`/api/staff/requests/stream`)**: Pushes incoming customer inquiries to the staff queue in real time without manual refreshes.
+- **Customer SSE Stream (`/api/portal/requests/stream`)**: Pushes human-approved answers back to the customer portal in real time without page reloads.
+
+### 4. Staff Queue & Mandatory HITL Approval Gate
+- **Human-in-the-Loop Gate**: Every customer-facing response is drafted by the LangGraph AI copilot and MUST be reviewed, edited (if needed), and explicitly approved by a staff member before delivery to the customer.
+
+---
+
+## Quickstart Guide
+
+### 1. Run Database Seeding & Ingestion
+```bash
+python src/seed.py
+python src/ingest_pgvector.py
+```
+
+### 2. Start FastAPI Backend Server
+```bash
+uvicorn src.main:app --reload --port 8000
+```
+
+### 3. Start React Frontend SPA
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
+## PyTest Automated Test Suite
+```bash
+python -m pytest tests/
+```
+- **Status**: 13 / 13 PASSED (0 errors).
 
 ### 2. Run Database Seeding, Policy Document Ingestion & Dev Server
 ```bash

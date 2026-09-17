@@ -32,8 +32,19 @@ except Exception as e:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():
-    """Create all tables in database"""
+    """Create all tables in database and run schema migrations if needed"""
     Base.metadata.create_all(bind=engine)
+    try:
+        with engine.begin() as conn:
+            if engine.name == "sqlite":
+                res = conn.execute(text("PRAGMA table_info(customers)"))
+                columns = [row[1] for row in res.fetchall()]
+                if columns and "hashed_password" not in columns:
+                    conn.execute(text("ALTER TABLE customers ADD COLUMN hashed_password VARCHAR"))
+            elif engine.name == "postgresql":
+                conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS hashed_password VARCHAR"))
+    except Exception as err:
+        logger.warning(f"Schema migration note: {err}")
 
 def get_db():
     """Dependency session generator"""
