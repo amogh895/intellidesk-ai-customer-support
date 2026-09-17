@@ -177,8 +177,8 @@ def seed_database():
             resolution_status="Escalated to Manager"
         ))
 
-        # Generate 197 unique customer records and conversation transcripts
-        for i in range(104, 301):
+        # Generate 198 unique customer records and conversation transcripts (CRM-104 to CRM-301)
+        for i in range(104, 302):
             c_id = f"CRM-{i}"
             pol_no = f"POL-NB-2026-{i:04d}"
             p_type = random.choice(POLICY_TYPES)
