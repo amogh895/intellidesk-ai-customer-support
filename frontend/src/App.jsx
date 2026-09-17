@@ -381,7 +381,15 @@ export default function App() {
 
   const handlePortalDemoLogin = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/portal/auth/demo-login`, { method: "POST" });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1500);
+
+      const res = await fetch(`${API_BASE_URL}/portal/auth/demo-login`, {
+        method: "POST",
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
       if (res.ok) {
         const data = await res.json();
         setPortalAuth({
@@ -391,41 +399,56 @@ export default function App() {
         });
         showToast(`Authenticated Demo Customer: ${data.customer.name} (${data.customer.id})`);
         fetchCustomerRequests(data.access_token);
-      } else {
-        throw new Error("Backend login offline");
+        return;
       }
     } catch (err) {
-      setPortalAuth({
-        isAuthenticated: true,
-        customer: {
-          id: "CRM-101",
-          name: "Rahul Verma",
-          email: "rahul.verma@example.com",
-          phone: "+91 98765 43210",
-          policy_number: "POL-NB-2026-9921",
-          policy_type: "Comprehensive Private Car Policy",
-          risk_tier: "Low",
-          realm: "customer",
-          is_demo: true
-        },
-        token: "demo_token_crm_101"
-      });
-      showToast("Launched Demo Customer Portal (Rahul Verma — CRM-101)");
+      console.log("Backend demo auth offline. Using client state.");
     }
+
+    const defaultCust = customers[0] || {
+      id: "CRM-101",
+      name: "Rahul Verma",
+      email: "rahul.verma@example.com",
+      phone: "+91 98765 43210",
+      policy_number: "POL-NB-2026-9921",
+      policy_type: "Comprehensive Private Car Policy",
+      risk_tier: "Low"
+    };
+
+    setPortalAuth({
+      isAuthenticated: true,
+      customer: {
+        id: defaultCust.id,
+        name: defaultCust.name,
+        email: defaultCust.email,
+        phone: defaultCust.phone,
+        policy_number: defaultCust.policy_number,
+        policy_type: defaultCust.policy_type,
+        risk_tier: defaultCust.risk_tier,
+        realm: "customer"
+      },
+      token: `demo_token_${defaultCust.id.toLowerCase()}`
+    });
+    showToast(`Launched Demo Customer Portal (${defaultCust.name} — ${defaultCust.id})`);
   };
 
   const handlePortalCustomerLogin = async (e) => {
     e.preventDefault();
     const form = e.target;
-    const email = form.email.value.trim().toLowerCase();
+    const emailInput = form.email.value.trim().toLowerCase();
     const password = form.password.value;
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1500);
+
       const res = await fetch(`${API_BASE_URL}/portal/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email: emailInput, password }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       if (res.ok) {
         const data = await res.json();
@@ -439,12 +462,15 @@ export default function App() {
         return;
       }
     } catch (err) {
-      console.log("Offline login fallback");
+      console.log("Backend auth offline. Executing client-side lookup for CRM-101 to CRM-301.");
     }
 
-    // Lookup customer in client array (CRM-101 to CRM-301)
+    // Flexible client-side lookup matching email, CRM ID, or CRM number
     const custMatch = customers.find(
-      c => c.email.toLowerCase() === email || c.id.toLowerCase() === email
+      c => c.email.toLowerCase() === emailInput ||
+           c.id.toLowerCase() === emailInput ||
+           c.id.toLowerCase().replace("-", "") === emailInput.replace("-", "") ||
+           `customer${c.id.replace('CRM-', '')}@northbridge.com` === emailInput
     );
 
     if (custMatch) {
@@ -464,7 +490,7 @@ export default function App() {
       });
       showToast(`Authenticated Customer: ${custMatch.name} (${custMatch.id}) — Policy ${custMatch.policy_number}`);
     } else {
-      showToast("❌ Login Failed: Customer record not found.");
+      showToast("❌ Login Failed: Customer record not found. Please select an account from CRM-101 to CRM-301.");
     }
   };
 
