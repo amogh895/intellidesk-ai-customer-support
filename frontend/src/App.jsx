@@ -479,6 +479,7 @@ export default function App() {
         const data = await res.json();
         showToast("✓ Support request submitted & queued for staff review!");
         fetchCustomerRequests(portalAuth.token);
+        fetchStaffIncomingQueue();
       } else {
         throw new Error("Backend offline");
       }
@@ -488,6 +489,7 @@ export default function App() {
         customer_id: portalAuth.customer ? portalAuth.customer.id : "CRM-101",
         customer_name: portalAuth.customer ? portalAuth.customer.name : "Rahul Verma",
         policy_number: portalAuth.customer ? portalAuth.customer.policy_number : "POL-NB-2026-9921",
+        risk_tier: portalAuth.customer ? portalAuth.customer.risk_tier : "Low",
         channel: channelType,
         original_query: finalQuery,
         redacted_query: finalQuery,
@@ -503,6 +505,7 @@ export default function App() {
         ]
       };
       setPortalRequests(prev => [newReq, ...prev]);
+      setStaffQueue(prev => [newReq, ...prev]);
       showToast("✓ Support request submitted and queued for staff approval!");
     }
 
@@ -678,7 +681,7 @@ export default function App() {
     setIsAuthenticated(true);
 
     // Default tab based on role abstraction
-    if (staffMatch.role === "Support Agent") setActiveTab("copilot");
+    if (staffMatch.role === "Support Agent") setActiveTab("queue");
     else if (staffMatch.role === "Technical Support Specialist (Senior CSR)") setActiveTab("tickets");
     else setActiveTab("dashboard");
 
