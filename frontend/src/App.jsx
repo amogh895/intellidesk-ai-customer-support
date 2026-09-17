@@ -255,7 +255,7 @@ const INITIAL_CONVERSATIONS = [
 
 export default function App() {
   // ─── STATE MANAGEMENT ───
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   // 3 Hierarchical RBAC Posts State
   // Role Tiers:
@@ -290,7 +290,12 @@ export default function App() {
   const [conversationSearchQuery, setConversationSearchQuery] = useState("");
 
   // ─── CUSTOMER PORTAL STATE & VOICE INTAKE ───
-  const [appRealm, setAppRealm] = useState("staff"); // "staff" or "customer"
+  const [appRealm, setAppRealm] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("realm") === "customer" || window.location.pathname.includes("portal")) return "customer";
+    if (params.get("realm") === "staff") return "staff";
+    return "landing"; // Default to gateway
+  });
   const [portalAuth, setPortalAuth] = useState({
     isAuthenticated: false,
     customer: null,
@@ -1075,15 +1080,61 @@ export default function App() {
     ? customers.filter(c => c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) || c.id.toLowerCase().includes(customerSearchQuery.toLowerCase()) || c.policy_number.toLowerCase().includes(customerSearchQuery.toLowerCase()))
     : customers;
 
-  // ─── LOGIN SCREEN IF NOT AUTHENTICATED ───
-  if (!isAuthenticated) {
+  // ─── GATEWAY LANDING SCREEN ───
+  if (appRealm === "landing") {
+    return (
+      <div className={`gateway-container ${isDarkMode ? "dark" : ""}`}>
+        <div className="gateway-header">
+          <div className="gateway-logo-wrap">
+            <div className="logo-badge large-badge" style={{ width: "48px", height: "48px", fontSize: "1.4rem" }}>NB</div>
+            <span className="brand-title" style={{ fontSize: "2rem", color: "var(--text-main)", fontWeight: 800 }}>NorthBridge Assurance</span>
+          </div>
+          <h1 className="gateway-headline">Enterprise Service Gateway</h1>
+          <p className="gateway-subtext">Select portal destination to proceed to your dedicated workspace.</p>
+        </div>
+
+        <div className="gateway-cards-grid">
+          <div className="gateway-card" onClick={() => setAppRealm("customer")}>
+            <div className="gateway-card-icon">👤</div>
+            <h2 className="gateway-card-title">Customer Self-Service Portal</h2>
+            <p className="gateway-card-desc">
+              Dedicated portal for policyholders to submit text or voice support inquiries, review grounded policy citations, and view staff-approved responses.
+            </p>
+            <ul className="gateway-feature-list">
+              <li className="gateway-feature-item">✓ Text & Voice Intake (WebSpeech STT)</li>
+              <li className="gateway-feature-item">✓ Live PII Redaction Guardrails</li>
+              <li className="gateway-feature-item">✓ Real-Time SSE Response Notifications</li>
+            </ul>
+            <button className="gateway-action-btn customer">Access Customer Portal ➔</button>
+          </div>
+
+          <div className="gateway-card" onClick={() => setAppRealm("staff")}>
+            <div className="gateway-card-icon">🏢</div>
+            <h2 className="gateway-card-title">Staff Operations Cockpit</h2>
+            <p className="gateway-card-desc">
+              Internal operations hub for CSRs, Senior CSRs, and CSMs to manage incoming customer queues, AI copilot drafts, and HITL approval gates.
+            </p>
+            <ul className="gateway-feature-list">
+              <li className="gateway-feature-item">✓ Real-Time Incoming Requests Queue</li>
+              <li className="gateway-feature-item">✓ Multi-Agent LangGraph RAG Copilot</li>
+              <li className="gateway-feature-item">✓ 3-Tier Hierarchical RBAC Authorization</li>
+            </ul>
+            <button className="gateway-action-btn staff">Access Staff Cockpit ➔</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── UNAUTHENTICATED STAFF LOGIN SCREEN ───
+  if (appRealm === "staff" && !isAuthenticated) {
     return (
       <div className={`login-page-container ${isDarkMode ? "dark" : ""}`}>
         <div className="login-split-card">
           <div className="login-brand-panel">
             <div className="brand-logo-wrap">
               <div className="brand-icon">NB</div>
-              <span className="brand-title">NorthBridge Assurance</span>
+              <span className="brand-title">NorthBridge Operations</span>
             </div>
             <h2 className="brand-headline">Grounded, governed AI copilot for enterprise insurance teams.</h2>
             <p className="brand-subtext">
@@ -1097,7 +1148,7 @@ export default function App() {
           </div>
 
           <div className="login-form-panel">
-            <h3 className="form-title">Staff Portal Login</h3>
+            <h3 className="form-title">Staff Operations Login</h3>
             <p className="form-subtitle">Enter credentials or select staff member from directory below</p>
             <form onSubmit={handleLogin} className="enterprise-login-form">
               <div className="form-group">
@@ -1160,6 +1211,15 @@ export default function App() {
               <button type="submit" className="login-btn">
                 Authenticate & Launch Cockpit
               </button>
+
+              <button
+                type="button"
+                className="table-action-btn"
+                style={{ marginTop: "16px", width: "100%", textAlign: "center", padding: "10px" }}
+                onClick={() => setAppRealm("landing")}
+              >
+                ← Return to Service Gateway
+              </button>
             </form>
           </div>
         </div>
@@ -1172,27 +1232,6 @@ export default function App() {
     <div className={`app-shell ${isDarkMode ? "dark" : ""}`}>
       {/* Toast Notification Banner */}
       {toastMessage && <div className="toast-notification">ℹ️ {toastMessage}</div>}
-
-      {/* TOP REALM SWITCHER BAR */}
-      <div className="realm-switcher-bar">
-        <div className="realm-switcher-group">
-          <button
-            className={`realm-btn ${appRealm === "staff" ? "active" : ""}`}
-            onClick={() => setAppRealm("staff")}
-          >
-            🏢 Staff Cockpit (Internal Support & Governance)
-          </button>
-          <button
-            className={`realm-btn ${appRealm === "customer" ? "active" : ""}`}
-            onClick={() => setAppRealm("customer")}
-          >
-            👤 Customer Portal (Self-Service & Requests)
-          </button>
-        </div>
-        <span className="mono text-sm text-subtle">
-          NorthBridge 2-Realm Gateway • {appRealm === "staff" ? `Staff Realm (${user.role})` : "Customer Realm"}
-        </span>
-      </div>
 
       {/* CUSTOMER PORTAL REALM WORKSPACE */}
       {appRealm === "customer" && (
@@ -1230,6 +1269,14 @@ export default function App() {
                 <button type="button" onClick={handlePortalDemoLogin} className="demo-login-btn">
                   🚀 Launch Demo Customer Portal (Rahul Verma — CRM-101)
                 </button>
+                <button
+                  type="button"
+                  className="table-action-btn"
+                  style={{ marginTop: "16px", width: "100%", textAlign: "center", padding: "10px" }}
+                  onClick={() => setAppRealm("landing")}
+                >
+                  ← Return to Service Gateway
+                </button>
               </div>
             </div>
           ) : (
@@ -1259,7 +1306,10 @@ export default function App() {
 
                   <button
                     className="logout-btn"
-                    onClick={() => setPortalAuth({ isAuthenticated: false, customer: null, token: null })}
+                    onClick={() => {
+                      setPortalAuth({ isAuthenticated: false, customer: null, token: null });
+                      setAppRealm("landing");
+                    }}
                     style={{ marginLeft: "12px" }}
                   >
                     🚪 Exit Portal
@@ -1554,8 +1604,8 @@ export default function App() {
             </div>
           </div>
 
-          <button className="logout-btn" onClick={() => setIsAuthenticated(false)} title="Sign out">
-            🚪 Logout
+          <button className="logout-btn" onClick={() => { setIsAuthenticated(false); setAppRealm("landing"); }} title="Sign out">
+            🚪 Logout & Exit
           </button>
         </div>
       </header>

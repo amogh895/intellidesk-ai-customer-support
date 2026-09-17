@@ -495,4 +495,127 @@ body {
 .status-badge.answered { background-color: #D1FAE5; color: #065F46; }
 .status-badge.closed { background-color: #E2E8F0; color: #475569; }
 
+/* ─── ENTERPRISE DUAL-REALM GATEWAY SCREEN ─── */
+.gateway-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-body);
+  padding: 40px 20px;
+}
+
+.gateway-header {
+  text-align: center;
+  margin-bottom: 44px;
+}
+
+.gateway-logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.gateway-headline {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+
+.gateway-subtext {
+  font-size: 1.05rem;
+  color: var(--text-subtle);
+  max-width: 600px;
+}
+
+.gateway-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 32px;
+  max-width: 900px;
+  width: 100%;
+}
+
+.gateway-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 36px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.25s ease;
+  cursor: pointer;
+}
+
+.gateway-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary-brand);
+}
+
+.gateway-card-icon {
+  font-size: 2.8rem;
+  margin-bottom: 16px;
+}
+
+.gateway-card-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 10px;
+}
+
+.gateway-card-desc {
+  font-size: 0.95rem;
+  color: var(--text-subtle);
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.gateway-feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 32px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gateway-feature-item {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gateway-action-btn {
+  margin-top: auto;
+  width: 100%;
+  padding: 14px 24px;
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.gateway-action-btn.customer {
+  background-color: var(--accent-emerald);
+  color: #FFFFFF;
+}
+
+.gateway-action-btn.staff {
+  background-color: var(--primary-brand);
+  color: #FFFFFF;
+}
+
+
 
