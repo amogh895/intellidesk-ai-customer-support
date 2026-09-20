@@ -108,11 +108,17 @@ async def login(req: LoginRequest):
 @app.post("/api/portal/auth/login")
 async def customer_login(req: CustomerLoginRequest, db=Depends(get_db)):
     """Customer Realm Login — Authenticates Customer against Hashed Password and Returns Customer JWT Token"""
-    customer = db.query(CustomerModel).filter(CustomerModel.email.ilike(req.email.strip())).first()
+    email_input = req.email.strip()
+    customer = db.query(CustomerModel).filter(
+        (CustomerModel.email.ilike(email_input)) |
+        (CustomerModel.id.ilike(email_input)) |
+        (CustomerModel.id.ilike(f"CRM-{email_input}"))
+    ).first()
+
     if not customer:
         raise HTTPException(
             status_code=401,
-            detail="Invalid credentials: Customer account not found for provided email."
+            detail="Invalid credentials: Customer account not found for provided email or CRM ID."
         )
 
     if customer.hashed_password and not verify_password(req.password, customer.hashed_password):
@@ -676,7 +682,7 @@ async def get_all_customers(q: Optional[str] = None, db=Depends(get_db)):
             (CustomerModel.id.ilike(f"%{q}%")) |
             (CustomerModel.policy_number.ilike(f"%{q}%"))
         )
-    customers = query_builder.limit(50).all()
+    customers = query_builder.order_by(CustomerModel.id.asc()).all()
     
     result = []
     for c in customers:
@@ -737,7 +743,7 @@ async def get_customer(customer_id: str, db=Depends(get_db)):
 # ─── TICKETS ───
 @app.get("/api/tickets")
 async def get_tickets(db=Depends(get_db)):
-    tickets = db.query(TicketModel).limit(50).all()
+    tickets = db.query(TicketModel).order_by(TicketModel.created_at.desc()).all()
     return [
         {
             "ticket_id": t.ticket_id,
