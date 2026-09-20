@@ -474,6 +474,8 @@ export default function App() {
       return;
     }
 
+    const channelType = portalInputMode === "voice" ? "voice" : "text";
+
     // Dynamically create & track ticket entry in real-time history
     const customerObj = portalAuth.customer || { id: "CRM-101", name: "Rahul Verma", policy_number: "POL-NB-2026-9921", risk_tier: "Low" };
     const dynamicTicket = {
