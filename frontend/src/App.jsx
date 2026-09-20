@@ -186,16 +186,7 @@ const INITIAL_AUDIT_LOGS = [
   }
 ];
 
-const INITIAL_TICKETS = INITIAL_CUSTOMERS.slice(0, 15).map((c, idx) => ({
-  ticket_id: `TCK-2026-${(idx + 1).toString().padStart(3, "0")}`,
-  customer_id: c.id,
-  customer_name: c.name,
-  policy_number: c.policy_number,
-  issue_type: c.policy_type,
-  priority: c.risk_tier === "High" ? "High Priority" : "Normal",
-  risk_tier: c.risk_tier,
-  status: c.status
-}));
+const INITIAL_TICKETS = [];
 
 const INITIAL_KB_CLAUSES = [
   { clause: "Clause 1: Scope of Cover & Eligibility", content: "Indemnity against accidental loss, external damage, fire, theft, and third-party liabilities for private motor vehicles.", doc: "Vehicle_Insurance_Policy_Handbook_2026_2027.md" },
@@ -483,7 +474,20 @@ export default function App() {
       return;
     }
 
-    const channelType = portalInputMode === "voice" ? "voice" : "text";
+    // Dynamically create & track ticket entry in real-time history
+    const customerObj = portalAuth.customer || { id: "CRM-101", name: "Rahul Verma", policy_number: "POL-NB-2026-9921", risk_tier: "Low" };
+    const dynamicTicket = {
+      ticket_id: `TCK-2026-${(tickets.length + 1).toString().padStart(3, "0")}`,
+      customer_id: customerObj.id,
+      customer_name: customerObj.name,
+      policy_number: customerObj.policy_number,
+      issue_type: finalQuery.length > 45 ? finalQuery.substring(0, 45) + "..." : finalQuery,
+      priority: customerObj.risk_tier === "High" ? "High Priority" : "Normal",
+      risk_tier: customerObj.risk_tier || "Low",
+      status: "Active",
+      created_at: new Date().toLocaleString()
+    };
+    setTickets(prev => [dynamicTicket, ...prev]);
 
     try {
       const res = await fetch(`${API_BASE_URL}/portal/requests`, {
@@ -497,7 +501,7 @@ export default function App() {
 
       if (res.ok) {
         const data = await res.json();
-        showToast("✓ Support request submitted & queued for staff review!");
+        showToast("✓ Support request submitted & ticket created for approval!");
         fetchCustomerRequests(portalAuth.token);
         fetchStaffIncomingQueue();
       } else {
@@ -506,10 +510,10 @@ export default function App() {
     } catch (err) {
       const newReq = {
         id: `REQ-2026-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-        customer_id: portalAuth.customer ? portalAuth.customer.id : "CRM-101",
-        customer_name: portalAuth.customer ? portalAuth.customer.name : "Rahul Verma",
-        policy_number: portalAuth.customer ? portalAuth.customer.policy_number : "POL-NB-2026-9921",
-        risk_tier: portalAuth.customer ? portalAuth.customer.risk_tier : "Low",
+        customer_id: customerObj.id,
+        customer_name: customerObj.name,
+        policy_number: customerObj.policy_number,
+        risk_tier: customerObj.risk_tier || "Low",
         channel: channelType,
         original_query: finalQuery,
         redacted_query: finalQuery,
@@ -526,7 +530,7 @@ export default function App() {
       };
       setPortalRequests(prev => [newReq, ...prev]);
       setStaffQueue(prev => [newReq, ...prev]);
-      showToast("✓ Support request submitted and queued for staff approval!");
+      showToast("✓ Support request submitted & ticket created for approval!");
     }
 
     setPortalTextQuery("");
@@ -752,6 +756,29 @@ export default function App() {
   }, [isAuthenticated]);
 
   const handleProcessRequestWithCopilot = async (reqId) => {
+    // Sync ticket status to Under Review
+    setTickets(prev => {
+      const targetReq = staffQueue.find(r => r.id === reqId);
+      const exists = prev.some(t => t.request_id === reqId || (targetReq && t.customer_id === targetReq.customer_id));
+      if (exists) {
+        return prev.map(t => (t.request_id === reqId || (targetReq && t.customer_id === targetReq.customer_id)) ? { ...t, status: "Under Review" } : t);
+      } else if (targetReq) {
+        return [{
+          ticket_id: `TCK-2026-${(prev.length + 1).toString().padStart(3, "0")}`,
+          request_id: targetReq.id,
+          customer_id: targetReq.customer_id,
+          customer_name: targetReq.customer_name || "Rahul Verma",
+          policy_number: targetReq.policy_number || "POL-NB-2026-9921",
+          issue_type: (targetReq.original_query || "").slice(0, 45) || "Support Inquiry",
+          priority: targetReq.risk_tier === "High" ? "High Priority" : "Normal",
+          risk_tier: targetReq.risk_tier || "Low",
+          status: "Under Review",
+          created_at: new Date().toLocaleString()
+        }, ...prev];
+      }
+      return prev;
+    });
+
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1500);
@@ -849,6 +876,29 @@ export default function App() {
   };
 
   const handleApproveStaffResponse = async (reqId, approved, editedContent) => {
+    // Sync ticket status to Resolved / Closed
+    setTickets(prev => {
+      const targetReq = staffQueue.find(r => r.id === reqId);
+      const exists = prev.some(t => t.request_id === reqId || (targetReq && t.customer_id === targetReq.customer_id));
+      if (exists) {
+        return prev.map(t => (t.request_id === reqId || (targetReq && t.customer_id === targetReq.customer_id)) ? { ...t, status: approved ? "Resolved" : "Closed" } : t);
+      } else if (targetReq) {
+        return [{
+          ticket_id: `TCK-2026-${(prev.length + 1).toString().padStart(3, "0")}`,
+          request_id: targetReq.id,
+          customer_id: targetReq.customer_id,
+          customer_name: targetReq.customer_name || "Rahul Verma",
+          policy_number: targetReq.policy_number || "POL-NB-2026-9921",
+          issue_type: (targetReq.original_query || "").slice(0, 45) || "Support Inquiry",
+          priority: targetReq.risk_tier === "High" ? "High Priority" : "Normal",
+          risk_tier: targetReq.risk_tier || "Low",
+          status: approved ? "Resolved" : "Closed",
+          created_at: new Date().toLocaleString()
+        }, ...prev];
+      }
+      return prev;
+    });
+
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1500);
@@ -1362,34 +1412,13 @@ export default function App() {
 
               <form onSubmit={handlePortalCustomerLogin} className="enterprise-login-form">
                 <div className="form-group">
-                  <label>Select Customer Profile ({customers.length} Accounts: CRM-101 to CRM-301)</label>
-                  <select
-                    className="login-preset-select"
-                    onChange={(e) => {
-                      const selected = customers.find(c => c.id === e.target.value);
-                      if (selected) {
-                        e.target.form.email.value = selected.email;
-                        e.target.form.password.value = "Customer@2026";
-                      }
-                    }}
-                    defaultValue="CRM-101"
-                  >
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        👤 {c.id} — {c.name} ({c.policy_type})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Customer Policy Email</label>
-                  <input type="email" name="email" placeholder="rahul.verma@example.com" defaultValue="rahul.verma@example.com" required />
+                  <label>Customer Policy Email or CRM ID (CRM-101 to CRM-301)</label>
+                  <input type="text" name="email" placeholder="e.g. CRM-101 or rahul.verma@example.com" required />
                 </div>
 
                 <div className="form-group">
                   <label>Account Password</label>
-                  <input type="password" name="password" placeholder="Customer@2026" defaultValue="Customer@2026" required />
+                  <input type="password" name="password" placeholder="Customer@2026" required />
                 </div>
 
                 <button type="submit" className="login-btn">
@@ -2325,56 +2354,66 @@ export default function App() {
                 <p>Filterable pipeline of customer inquiries across voice and text channels.</p>
               </div>
 
-              <div className="table-wrapper">
-                <table className="enterprise-table">
-                  <thead>
-                    <tr>
-                      <th>Ticket ID</th>
-                      <th>Customer Name</th>
-                      <th>Policy No</th>
-                      <th>Issue Type</th>
-                      <th>Priority</th>
-                      <th>Risk Tier</th>
-                      <th>Status</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tickets.map((t) => (
-                      <tr key={t.ticket_id}>
-                        <td className="mono font-bold">{t.ticket_id}</td>
-                        <td className="font-bold">{t.customer_name}</td>
-                        <td className="mono">{t.policy_number}</td>
-                        <td>{t.issue_type}</td>
-                        <td>
-                          <span className={`priority-badge priority-${t.priority === 'High Priority' ? 'high' : 'normal'}`}>
-                            {t.priority}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`risk-badge risk-${t.risk_tier.toLowerCase()}`}>
-                            {t.risk_tier} Risk
-                          </span>
-                        </td>
-                        <td><span className="status-pill active">{t.status}</span></td>
-                        <td>
-                          <button
-                            className="table-action-btn"
-                            onClick={() => {
-                              const match = customers.find((c) => c.id === t.customer_id);
-                              if (match) setSelectedCustomer(match);
-                              setCopilotSubTab("chat");
-                              setActiveTab("copilot");
-                            }}
-                          >
-                            Open Copilot ➔
-                          </button>
-                        </td>
+              {tickets.length === 0 ? (
+                <div style={{ padding: "48px 24px", textAlign: "center", background: "var(--card-bg)", borderRadius: "10px", border: "1px dashed var(--border-color)", margin: "20px 0" }}>
+                  <div style={{ fontSize: "42px", marginBottom: "12px" }}>🎟️</div>
+                  <h3 style={{ color: "var(--text-main)", marginBottom: "8px", fontSize: "18px" }}>No Active Customer Tickets</h3>
+                  <p style={{ color: "var(--text-sub)", fontSize: "14px", maxWidth: "550px", margin: "0 auto 16px auto", lineHeight: "1.5" }}>
+                    All static fake pre-seeded tickets have been cleared. When a customer submits an inquiry from the Customer Portal or it enters the Staff Approval pipeline, a real ticket with live status tracking (Active → Under Review → Resolved) will automatically be generated and saved in history here.
+                  </p>
+                </div>
+              ) : (
+                <div className="table-wrapper">
+                  <table className="enterprise-table">
+                    <thead>
+                      <tr>
+                        <th>Ticket ID</th>
+                        <th>Customer Name</th>
+                        <th>Policy No</th>
+                        <th>Issue Type</th>
+                        <th>Priority</th>
+                        <th>Risk Tier</th>
+                        <th>Status</th>
+                        <th>Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {tickets.map((t) => (
+                        <tr key={t.ticket_id}>
+                          <td className="mono font-bold">{t.ticket_id}</td>
+                          <td className="font-bold">{t.customer_name}</td>
+                          <td className="mono">{t.policy_number}</td>
+                          <td>{t.issue_type}</td>
+                          <td>
+                            <span className={`priority-badge priority-${t.priority === 'High Priority' ? 'high' : 'normal'}`}>
+                              {t.priority}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`risk-badge risk-${t.risk_tier.toLowerCase()}`}>
+                              {t.risk_tier} Risk
+                            </span>
+                          </td>
+                          <td><span className="status-pill active">{t.status}</span></td>
+                          <td>
+                            <button
+                              className="table-action-btn"
+                              onClick={() => {
+                                const match = customers.find((c) => c.id === t.customer_id);
+                                if (match) setSelectedCustomer(match);
+                                setCopilotSubTab("chat");
+                                setActiveTab("copilot");
+                              }}
+                            >
+                              Open Copilot ➔
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 

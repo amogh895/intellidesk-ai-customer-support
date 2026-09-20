@@ -211,20 +211,6 @@ def seed_database():
             )
             db.add(pol)
 
-            if random.random() > 0.4:
-                t_id = f"TCK-2026-{i:03d}"
-                ticket = TicketModel(
-                    ticket_id=t_id,
-                    customer_id=c_id,
-                    customer_name=cust.name,
-                    policy_number=pol_no,
-                    issue_type=p_type,
-                    priority="High Priority" if risk == "High" else "Normal",
-                    risk_tier=risk,
-                    status=cust.status
-                )
-                db.add(ticket)
-
             # Generate centralized conversation record
             if random.random() > 0.3:
                 conv_trans, conv_resp = random.choice(CONVERSATION_TRANSCRIPTS)

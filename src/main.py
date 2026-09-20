@@ -251,6 +251,20 @@ async def create_support_request(
     )
     db.add(new_req)
 
+    # Dynamically create TicketModel record for customer query tracking
+    t_id = f"TCK-2026-{uuid.uuid4().hex[:4].upper()}"
+    new_ticket = TicketModel(
+        ticket_id=t_id,
+        customer_id=current_customer.id,
+        customer_name=current_customer.name,
+        policy_number=current_customer.policy_number,
+        issue_type=current_customer.policy_type or body.query.strip()[:40],
+        priority="High Priority" if current_customer.risk_tier == "High" else "Normal",
+        risk_tier=current_customer.risk_tier or "Low",
+        status="Active"
+    )
+    db.add(new_ticket)
+
     msg_id = f"MSG-{uuid.uuid4().hex[:6].upper()}"
     new_msg = RequestMessageModel(
         id=msg_id,
@@ -444,6 +458,11 @@ async def process_customer_request_with_copilot(
     req.status = "awaiting_approval"
     req.updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    # Update dynamic ticket status
+    ticket = db.query(TicketModel).filter(TicketModel.customer_id == req.customer_id).order_by(TicketModel.created_at.desc()).first()
+    if ticket:
+        ticket.status = "Under Review"
+
     # Save draft message in thread
     ai_msg_id = f"MSG-{uuid.uuid4().hex[:6].upper()}"
     ai_msg = RequestMessageModel(
@@ -491,6 +510,10 @@ async def approve_and_dispatch_customer_request(
     if body.approved:
         req.status = "answered"
         req.updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        ticket = db.query(TicketModel).filter(TicketModel.customer_id == req.customer_id).order_by(TicketModel.created_at.desc()).first()
+        if ticket:
+            ticket.status = "Resolved"
 
         agent_msg_id = f"MSG-{uuid.uuid4().hex[:6].upper()}"
         agent_msg = RequestMessageModel(
