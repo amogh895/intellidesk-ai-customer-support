@@ -81,13 +81,12 @@ def supervisor_orchestrator_node(state: AgentState) -> Dict[str, Any]:
 # ═══════════ AGENT 2: POLICY RAG SPECIALIST SUB-AGENT ═══════════
 def policy_rag_specialist_node(state: AgentState) -> Dict[str, Any]:
     """
-    Specialized Sub-Agent responsible for searching ChromaDB vector store
+    Specialized Sub-Agent responsible for searching PolicyChunkModel vector store
     (including 2026-2027 Vehicle Insurance Policy Handbook and markdown guidelines)
-    and generating citation-backed compliance responses.
+    and generating citation-backed grounded responses.
     """
     gemini = GeminiClient()
     query = state["user_query"]
-    query_lower = query.lower()
     
     logs = list(state.get("agent_logs") or [])
     logs.append({
@@ -95,57 +94,49 @@ def policy_rag_specialist_node(state: AgentState) -> Dict[str, Any]:
         "action": "Executing semantic search on policy documents & handbooks"
     })
     
-    # Special handling for queries about topics not in handbook (e.g., nominee/beneficiary change)
-    if "nominee" in query_lower or "beneficiary" in query_lower:
-        response = (
-            "The current Policy Handbook does not specify the procedure or requirements for changing a nominee. "
-            "Please check internal policy-service procedure or escalate to a supervisor if necessary."
-        )
-        return {
-            "active_agent": "policy_rag",
-            "retrieved_context": "",
-            "confidence": 0.90,
-            "response": response,
-            "agent_logs": logs
-        }
-
-    # Retrieve top match documents from vector store
+    # Retrieve top match documents from database vector store
     retrieved = search_knowledge_base(query)
-    context = retrieved["context"]
-    confidence = retrieved["confidence"]
-    sources = retrieved["sources"]
+    context = retrieved.get("context", "")
+    confidence = retrieved.get("confidence", 0.0)
+    sources = retrieved.get("sources", [])
     
-    if confidence < 0.51 or not context.strip():
+    citations = [
+        {
+            "id": src.get("id", idx + 1),
+            "title": src.get("category") or src.get("file") or "Policy Handbook",
+            "doc": src.get("file") or "Vehicle_Insurance_Policy_Handbook_2026_2027.md",
+            "snippet": src.get("snippet") or ""
+        }
+        for idx, src in enumerate(sources)
+    ]
+
+    if confidence < 0.20 or not context.strip():
         response = (
-            "The current Policy Handbook does not contain specific documentation for this query. "
-            "Please verify internal policy-service procedures or escalate to a supervisor."
+            "The current Policy Handbook does not contain specific documentation to answer this query. "
+            "Flagged for human staff review to confirm internal policy service procedures."
         )
         context = ""
     else:
         system_prompt = (
-            "You are the Policy RAG Specialist Sub-Agent for NorthBridge Insurance. "
-            "Your task is to answer the user's query using ONLY the provided document context below.\n\n"
+            "You are the Policy RAG Specialist Sub-Agent for NorthBridge Insurance.\n"
+            "Your task is to answer the customer's actual question using ONLY the provided document CONTEXT below.\n\n"
             f"CONTEXT:\n{context}\n\n"
-            "INSTRUCTIONS:\n"
-            "- Answer the question factually based ONLY on the context.\n"
-            "- Cite the sources by appending their [1], [2] citation numbers where appropriate.\n"
-            "- Do not make up facts or include external knowledge.\n"
-            "- If the context does not contain enough info, state clearly that the handbook does not specify the procedure."
+            "STRICT INSTRUCTIONS:\n"
+            "1. Answer the customer's actual question directly and specifically based ONLY on the retrieved CONTEXT.\n"
+            "2. Cite specific policy clauses and section names using [1], [2] where appropriate.\n"
+            "3. State clearly whether the requested item/event is COVERED, EXCLUDED, or PARTIALLY COVERED. Include specific rupee/dollar amounts, deductibles, limits, and rider requirements if present in the context.\n"
+            "4. Note: Motor insurance policies cover accidental loss/damage, theft, fire, third-party liability, and active riders (such as Zero Depreciation or EV Battery Shield). Motor insurance DOES NOT cover normal wear and tear, battery age degradation, mechanical/electrical breakdown, or manufacturing defects covered under manufacturer warranty.\n"
+            "5. If the context does not contain sufficient information to answer the query, explicitly state that the policy handbook lacks the required details and flag the inquiry for human staff review.\n"
+            "6. NEVER emit generic boilerplate phrases like 'coverage verified active under standard terms and conditions'."
         )
         response = gemini.generate_response(prompt=query, system_instruction=system_prompt)
         
-        # Format sources as citation appendix
-        if sources:
-            citation_list = []
-            for src in sources:
-                citation_list.append(f"- [{src['id']}] Source file: {src['file']} ({src['category']})")
-            response += "\n\n**Sources:**\n" + "\n".join(citation_list)
-            
     return {
         "active_agent": "policy_rag",
         "retrieved_context": context,
         "confidence": confidence,
         "response": response,
+        "citations": citations,
         "agent_logs": logs
     }
 
@@ -349,3 +340,86 @@ graph = builder.compile(
     checkpointer=memory,
     interrupt_before=["execute_claims_action"]
 )
+
+def run_graph_workflow(
+    query: str,
+    customer_id: Optional[str] = None,
+    thread_id: Optional[str] = None,
+    autonomy: bool = True
+) -> Dict[str, Any]:
+    """
+    Executes compiled LangGraph multi-agent graph workflow and formats output to frontend JSON schema.
+    """
+    import uuid
+    from src.pii import redact_pii
+    
+    redacted = redact_pii(query)
+    t_id = thread_id or f"tr_{uuid.uuid4().hex[:8]}"
+
+    initial_state: AgentState = {
+        "user_query": redacted,
+        "intent": None,
+        "active_agent": None,
+        "agent_logs": [],
+        "retrieved_context": None,
+        "confidence": 0.0,
+        "customer_info": {"id": customer_id} if customer_id else None,
+        "action_output": None,
+        "response": None,
+        "is_approved": None,
+        "pending_action": None,
+        "history": None,
+        "autonomy_enabled": autonomy,
+        "citations": []
+    }
+
+    config = {"configurable": {"thread_id": t_id}}
+    final_state = graph.invoke(initial_state, config=config)
+
+    response_text = final_state.get("response") or "No response generated."
+    confidence_val = final_state.get("confidence") or 0.85
+    if isinstance(confidence_val, float) and confidence_val <= 1.0:
+        confidence_pct = int(confidence_val * 100)
+    else:
+        confidence_pct = int(confidence_val)
+
+    raw_agent = final_state.get("active_agent") or "supervisor"
+    agent_map = {
+        "supervisor": "Supervisor Orchestrator Agent",
+        "policy_rag": "Policy RAG Agent",
+        "crm_account": "CRM Account Agent",
+        "claims_hitl": "Claims HITL Agent"
+    }
+    active_agent = agent_map.get(raw_agent, raw_agent)
+
+    query_lower = query.lower()
+    sentiment = "neutral"
+    if any(w in query_lower for w in ["urgent", "immediately", "accident", "crash", "stolen"]):
+        sentiment = "anxious"
+    elif any(w in query_lower for w in ["angry", "delay", "rejected", "horrible", "terrible"]):
+        sentiment = "frustrated"
+
+    citations = final_state.get("citations") or []
+
+    hitlCard = None
+    if final_state.get("pending_action"):
+        pending = final_state["pending_action"]
+        hitlCard = {
+            "required_level": 2 if pending.get("intent") == "escalate" else 1,
+            "required_role": "Customer Service Manager (CSM)" if pending.get("intent") == "escalate" else "Technical Support Specialist (Senior CSR)",
+            "action": pending.get("intent"),
+            "details": pending.get("details")
+        }
+
+    return {
+        "thread_id": t_id,
+        "status": "completed",
+        "response": response_text,
+        "confidence": confidence_pct,
+        "grounded": (confidence_val if isinstance(confidence_val, float) else confidence_val / 100.0) >= 0.25,
+        "activeAgent": active_agent,
+        "sentiment": sentiment,
+        "citations": citations,
+        "hitlCard": hitlCard
+    }
+

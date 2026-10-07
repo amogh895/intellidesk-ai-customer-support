@@ -14,7 +14,7 @@ from src.models import (
     AuditLogModel, PolicyChunkModel, EvaluationMetricModel, CustomerConversationModel,
     SupportRequestModel, RequestMessageModel
 )
-from src.agent.real_graph import real_agent_graph
+from src.agent.graph import graph, run_graph_workflow
 from src.auth import create_access_token, verify_password, get_current_customer, get_current_staff
 from src.pii import redact_pii
 from src.sse_manager import sse_broadcaster
@@ -452,8 +452,8 @@ async def process_customer_request_with_copilot(
 
     cust = db.query(CustomerModel).filter(CustomerModel.id == req.customer_id).first()
 
-    # Route sanitized query through existing LangGraph RAG copilot engine
-    graph_res = real_agent_graph.process_query(
+    # Route sanitized query through compiled LangGraph RAG copilot engine
+    graph_res = run_graph_workflow(
         query=req.redacted_query,
         customer_id=req.customer_id
     )
@@ -566,7 +566,7 @@ async def run_agent_query(req: QueryRequest):
     Submits query to real LangGraph Multi-Agent Engine.
     Executes intent classification, pgvector retrieval, CRM lookups, and 2-Level RBAC HITL interrupts.
     """
-    result = real_agent_graph.process_query(
+    result = run_graph_workflow(
         query=req.query,
         customer_id=req.customer_id,
         thread_id=req.thread_id,
@@ -580,7 +580,7 @@ async def stream_agent_query(q: str, customer_id: Optional[str] = None, thread_i
     Server-Sent Events (SSE) streaming endpoint for live agent token & status streaming.
     """
     async def event_generator():
-        result = real_agent_graph.process_query(query=q, customer_id=customer_id, thread_id=thread_id)
+        result = run_graph_workflow(query=q, customer_id=customer_id, thread_id=thread_id)
         
         yield f"event: status\ndata: {json.dumps({'agent': result['activeAgent'], 'sentiment': result.get('sentiment', 'neutral')})}\n\n"
         await asyncio.sleep(0.1)

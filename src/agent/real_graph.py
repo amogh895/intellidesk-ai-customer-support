@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# DEPRECATED / QUARANTINED MODULE
+# DO NOT USE THIS MODULE OR RE-WIRE IT INTO PRODUCTION ENDPOINTS.
+# Production endpoints MUST use compiled LangGraph 'graph' / 'run_graph_workflow' from 'src.agent.graph'.
+# ══════════════════════════════════════════════════════════════════════════════
 import os
 import uuid
 import math

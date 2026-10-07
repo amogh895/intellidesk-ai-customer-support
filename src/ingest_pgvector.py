@@ -1,6 +1,7 @@
 import os
 import sys
 import math
+import time
 from dotenv import load_dotenv
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -10,15 +11,7 @@ from src.models import PolicyChunkModel
 
 load_dotenv()
 
-def generate_simple_embedding(text: str, dim: int = 384):
-    words = text.lower().split()
-    vector = [0.0] * dim
-    for idx, word in enumerate(words):
-        hash_val = hash(word)
-        pos = abs(hash_val) % dim
-        vector[pos] += 1.0 / (idx + 1)
-    norm = math.sqrt(sum(x * x for x in vector)) or 1.0
-    return [round(x / norm, 5) for x in vector]
+from src.retrieval.embeddings import get_embeddings_model
 
 def chunk_document(text: str, chunk_size: int = 500, overlap: int = 100):
     chunks = []
@@ -33,6 +26,7 @@ def chunk_document(text: str, chunk_size: int = 500, overlap: int = 100):
 def ingest_policy_documents():
     init_db()
     db = SessionLocal()
+    embeddings_model = get_embeddings_model()
 
     try:
         data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
@@ -67,7 +61,9 @@ def ingest_policy_documents():
                 lines = chunk_str.strip().split("\n")
                 title = lines[0] if lines[0].startswith("#") or lines[0].startswith("Clause") else f"{fname} Chunk {idx+1}"
                 
-                vector = generate_simple_embedding(chunk_str)
+                vector = embeddings_model.embed_query(chunk_str)
+                # Rate-limit: Gemini free tier allows 100 embed_content requests/min
+                time.sleep(0.7)
 
                 chunk_obj = PolicyChunkModel(
                     document_name=fname,
@@ -79,6 +75,8 @@ def ingest_policy_documents():
                 )
                 db.add(chunk_obj)
                 total_chunks += 1
+                if total_chunks % 10 == 0:
+                    print(f"  ... embedded {total_chunks} chunks so far")
 
         db.commit()
         print(f"\n[OK] Ingestion complete! Total Policy Vector Embeddings in pgvector: {total_chunks}")

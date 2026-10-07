@@ -33,7 +33,7 @@ class GeminiClient:
         Generate a text response for a given prompt and optional system instructions.
         """
         if not self.client:
-            return self._mock_generate_response(prompt, system_instruction)
+            return "⚠️ GEMINI_API_KEY is not configured in environment settings. Please set GEMINI_API_KEY in .env to generate live AI Copilot responses."
             
         try:
             config = None
@@ -50,8 +50,8 @@ class GeminiClient:
             )
             return response.text
         except Exception as e:
-            logger.warning(f"Error calling Gemini API: {e}. Falling back to mock response.")
-            return self._mock_generate_response(prompt, system_instruction)
+            logger.warning(f"Error calling Gemini API: {e}.")
+            return f"⚠️ Error calling Gemini API: {str(e)}"
 
     def generate_structured_output(self, prompt: str, schema: Type[BaseModel], system_instruction: Optional[str] = None) -> BaseModel:
         """

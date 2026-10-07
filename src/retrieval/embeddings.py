@@ -1,17 +1,16 @@
 import os
 import logging
-from typing import List
-from langchain_core.embeddings import Embeddings
+from typing import List, Any
 from src.config.config import settings
 
 logger = logging.getLogger(__name__)
 
-class GeminiApiEmbeddings(Embeddings):
+class GeminiApiEmbeddings:
     """
     Lightweight Google GenAI embeddings (0 MB RAM footprint).
     Embeddings are computed via Google Gemini API instead of running heavy PyTorch locally.
     """
-    def __init__(self, api_key: str = None, model: str = "text-embedding-004"):
+    def __init__(self, api_key: str = None, model: str = "gemini-embedding-001"):
         self.api_key = api_key or settings.GEMINI_API_KEY
         self.model = model
         self._client = None
@@ -27,13 +26,12 @@ class GeminiApiEmbeddings(Embeddings):
             return self._fallback_embed(texts)
         try:
             embeddings = []
-            # Batch call or per-item
             for text in texts:
                 res = self._client.models.embed_content(
                     model=self.model,
                     contents=text[:2048]
                 )
-                embeddings.append(res.embedding.values)
+                embeddings.append(res.embeddings[0].values)
             return embeddings
         except Exception as e:
             logger.warning(f"Gemini API embed_documents failed: {e}. Using fallback.")
@@ -47,7 +45,7 @@ class GeminiApiEmbeddings(Embeddings):
                 model=self.model,
                 contents=text[:2048]
             )
-            return res.embedding.values
+            return res.embeddings[0].values
         except Exception as e:
             logger.warning(f"Gemini API embed_query failed: {e}. Using fallback.")
             return self._fallback_embed([text])[0]
@@ -72,29 +70,13 @@ class GeminiApiEmbeddings(Embeddings):
         return results
 
 
-def get_embeddings_model() -> Embeddings:
+def get_embeddings_model() -> Any:
     """
-    Returns the best available embedding provider.
-    Prefers HuggingFace locally (matches the 384-dim ChromaDB index).
-    Falls back to Gemini API embeddings for cloud/memory-constrained environments.
+    Returns GeminiApiEmbeddings (gemini-embedding-001, 3072-dim).
+    Both ingestion and retrieval MUST use the same model to ensure
+    cosine-similarity works correctly against pgvector.
     """
-    # Try HuggingFace first — matches the 384-dim vectors stored in ChromaDB
-    try:
-        from langchain_huggingface import HuggingFaceEmbeddings
-        return HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2",
-            model_kwargs={"device": "cpu"}
-        )
-    except Exception as e:
-        logger.warning(f"HuggingFace embeddings not available: {e}. Trying Gemini API.")
-
-    # Fall back to Gemini API embeddings (cloud/memory-constrained environments)
     if settings.GEMINI_API_KEY:
-        try:
-            return GeminiApiEmbeddings()
-        except Exception as e:
-            logger.warning(f"Failed to load GeminiApiEmbeddings: {e}")
-
-    # Last resort: return GeminiApiEmbeddings with fallback hash-based vectors
-    logger.warning("No embedding provider available. Using GeminiApiEmbeddings with fallback.")
+        return GeminiApiEmbeddings()
+    logger.warning("GEMINI_API_KEY not set. GeminiApiEmbeddings will use hash-based fallback.")
     return GeminiApiEmbeddings()
