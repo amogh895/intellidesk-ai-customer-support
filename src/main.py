@@ -458,8 +458,19 @@ async def process_customer_request_with_copilot(
         customer_id=req.customer_id
     )
 
-    draft_answer = graph_res.get("response", "")
+    draft_answer = graph_res.get("response", "").strip()
     citations = graph_res.get("citations", [])
+
+    # Ensure professional template with portal reminder and sign-off
+    CLOSING_SIGNATURE = (
+        "Please keep checking your Customer Assistance portal regularly until further updates.\n\n"
+        "Regards,\n"
+        "Customer Support Team,\n"
+        "NorthBridge Assurance Pvt. Ltd."
+    )
+    if "Customer Assistance portal" not in draft_answer:
+        greeting = "Dear Customer,\n\nThank you for reaching out to NorthBridge Assurance.\n\n" if "Thank you" not in draft_answer else ""
+        draft_answer = f"{greeting}{draft_answer}\n\n{CLOSING_SIGNATURE}"
 
     req.status = "awaiting_approval"
     req.updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

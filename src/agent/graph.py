@@ -112,22 +112,34 @@ def policy_rag_specialist_node(state: AgentState) -> Dict[str, Any]:
 
     if confidence < 0.20 or not context.strip():
         response = (
+            "Dear Customer,\n\n"
+            "Thank you for reaching out to NorthBridge Assurance.\n\n"
             "The current Policy Handbook does not contain specific documentation to answer this query. "
-            "Flagged for human staff review to confirm internal policy service procedures."
+            "Your inquiry has been flagged for human staff review to confirm internal policy service procedures.\n\n"
+            "Please keep checking your Customer Assistance portal regularly until further updates.\n\n"
+            "Regards,\n"
+            "Customer Support Team,\n"
+            "NorthBridge Assurance Pvt. Ltd."
         )
         context = ""
     else:
         system_prompt = (
             "You are the Policy RAG Specialist Sub-Agent for NorthBridge Insurance.\n"
-            "Your task is to answer the customer's actual question using ONLY the provided document CONTEXT below.\n\n"
+            "Your task is to draft a complete, professional customer response using ONLY the provided document CONTEXT below.\n\n"
             f"CONTEXT:\n{context}\n\n"
             "STRICT INSTRUCTIONS:\n"
-            "1. Answer the customer's actual question directly and specifically based ONLY on the retrieved CONTEXT.\n"
-            "2. Cite specific policy clauses and section names using [1], [2] where appropriate.\n"
-            "3. State clearly whether the requested item/event is COVERED, EXCLUDED, or PARTIALLY COVERED. Include specific rupee/dollar amounts, deductibles, limits, and rider requirements if present in the context.\n"
-            "4. Note: Motor insurance policies cover accidental loss/damage, theft, fire, third-party liability, and active riders (such as Zero Depreciation or EV Battery Shield). Motor insurance DOES NOT cover normal wear and tear, battery age degradation, mechanical/electrical breakdown, or manufacturing defects covered under manufacturer warranty.\n"
-            "5. If the context does not contain sufficient information to answer the query, explicitly state that the policy handbook lacks the required details and flag the inquiry for human staff review.\n"
-            "6. NEVER emit generic boilerplate phrases like 'coverage verified active under standard terms and conditions'."
+            "1. FORMATTING & TONE: Begin the response with a courteous greeting (e.g., 'Dear Customer,', 'Thank you for reaching out to NorthBridge Assurance.').\n"
+            "2. Answer the customer's actual question directly and specifically based ONLY on the retrieved CONTEXT.\n"
+            "3. Cite specific policy clauses and section names using [1], [2] where appropriate.\n"
+            "4. State clearly whether the requested item/event is COVERED, EXCLUDED, or PARTIALLY COVERED. Include specific rupee/dollar amounts, deductibles, limits, and rider requirements if present in the context.\n"
+            "5. Note: Motor insurance policies cover accidental loss/damage, theft, fire, third-party liability, and active riders (such as Zero Depreciation or EV Battery Shield). Motor insurance DOES NOT cover normal wear and tear, battery age degradation, mechanical/electrical breakdown, or manufacturing defects covered under manufacturer warranty.\n"
+            "6. If the context does not contain sufficient information to answer the query, explicitly state that the policy handbook lacks the required details and flag the inquiry for human staff review.\n"
+            "7. SIGN-OFF & CLOSING: End every response with the exact closing template:\n"
+            "Please keep checking your Customer Assistance portal regularly until further updates.\n\n"
+            "Regards,\n"
+            "Customer Support Team,\n"
+            "NorthBridge Assurance Pvt. Ltd.\n"
+            "8. NEVER emit generic boilerplate phrases like 'coverage verified active under standard terms and conditions'."
         )
         response = gemini.generate_response(prompt=query, system_instruction=system_prompt)
         
@@ -253,10 +265,21 @@ def execute_claims_action_node(state: AgentState) -> Dict[str, Any]:
 
     action_result = {}
     if intent == "draft_reply":
+        cid = pending.get("customer_id") or "UNKNOWN"
+        raw_body = pending.get("details") or ""
+        formatted_content = (
+            f"Dear Customer ({cid}),\n\n"
+            f"Thank you for reaching out to NorthBridge Assurance.\n\n"
+            f"{raw_body.strip()}\n\n"
+            "Please keep checking your Customer Assistance portal regularly until further updates.\n\n"
+            "Regards,\n"
+            "Customer Support Team,\n"
+            "NorthBridge Assurance Pvt. Ltd."
+        )
         action_result = draft_customer_response(
-            customer_id=pending.get("customer_id") or "UNKNOWN",
+            customer_id=cid,
             subject=pending.get("subject") or "Support Follow-up",
-            content=pending.get("details") or "",
+            content=formatted_content,
             auto_send=_autonomy_on(state)
         )
         status_note = action_result['status']

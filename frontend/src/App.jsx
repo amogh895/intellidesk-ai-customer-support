@@ -810,8 +810,12 @@ export default function App() {
       let draftAnswer = "";
       let citations = [];
 
+      const TEMPLATE_HEADER = "Dear Customer,\n\nThank you for reaching out to NorthBridge Assurance.\n\n";
+      const TEMPLATE_FOOTER = "\n\nWe will get back to you soon. Please keep checking your Customer Assistance portal regularly until further updates.\n\nRegards,\nCustomer Support Team,\nNorthBridge Assurance Pvt. Ltd.";
+
       if (queryLower.includes("hydrostatic") || queryLower.includes("water") || queryLower.includes("engine") || queryLower.includes("lock")) {
-        draftAnswer = `Based on policy ${targetReq.policy_number || 'provisions'}, hydrostatic lock cover protects your vehicle engine against water ingress damage. Under Clause 2 (Hydrostatic Lock Protection Rider), repair and component replacement costs are covered up to the sum insured, subject to standard claim excess.`;
+        const coreBody = `Based on policy ${targetReq.policy_number || 'provisions'}, hydrostatic lock cover protects your vehicle engine against water ingress damage. Under Clause 2 (Hydrostatic Lock Protection Rider), repair and component replacement costs are covered up to the sum insured, subject to standard claim excess.`;
+        draftAnswer = `${TEMPLATE_HEADER}${coreBody}${TEMPLATE_FOOTER}`;
         citations = [
           {
             id: 1,
@@ -821,7 +825,8 @@ export default function App() {
           }
         ];
       } else if (queryLower.includes("deductible") || queryLower.includes("scrape") || queryLower.includes("accident") || queryLower.includes("damage")) {
-        draftAnswer = `Based on your policy ${targetReq.policy_number || 'provisions'}, the compulsory excess for accidental damage claims is ₹1,000. Components covered under your Zero Depreciation add-on rider will be replaced without standard age depreciation deductions.`;
+        const coreBody = `Based on your policy ${targetReq.policy_number || 'provisions'}, the compulsory excess for accidental damage claims is ₹1,000. Components covered under your Zero Depreciation add-on rider will be replaced without standard age depreciation deductions.`;
+        draftAnswer = `${TEMPLATE_HEADER}${coreBody}${TEMPLATE_FOOTER}`;
         citations = [
           {
             id: 1,
@@ -831,7 +836,8 @@ export default function App() {
           }
         ];
       } else if (queryLower.includes("claim") || queryLower.includes("fleet") || queryLower.includes("status")) {
-        draftAnswer = `Regarding your claim inquiry for policy ${targetReq.policy_number || 'account'}, your claim documentation has been routed for HITL review. Payout limits and coverage conditions have been verified.`;
+        const coreBody = `Regarding your claim inquiry for policy ${targetReq.policy_number || 'account'}, your claim documentation has been routed for HITL review. Payout limits and coverage conditions have been verified.`;
+        draftAnswer = `${TEMPLATE_HEADER}${coreBody}${TEMPLATE_FOOTER}`;
         citations = [
           {
             id: 1,
@@ -841,7 +847,8 @@ export default function App() {
           }
         ];
       } else {
-        draftAnswer = `According to policy handbook terms for ${targetReq.policy_number || 'your policy'}, your inquiry regarding "${targetReq.original_query}" has been analyzed. Coverage is verified active under standard terms and conditions.`;
+        const coreBody = `Regarding your inquiry for ${targetReq.policy_number || 'your policy'}: "${targetReq.original_query}", your coverage details have been retrieved and verified under current policy terms.`;
+        draftAnswer = `${TEMPLATE_HEADER}${coreBody}${TEMPLATE_FOOTER}`;
         citations = [
           {
             id: 1,
@@ -2589,10 +2596,14 @@ export default function App() {
                           ⚡ AI Copilot Drafted Answer (Review/Edit before delivery):
                         </span>
                         <textarea
-                          rows={6}
+                          rows={8}
                           className="voice-confirm-textarea"
                           style={{ marginTop: "8px", borderLeft: "4px solid var(--accent-emerald)" }}
-                          defaultValue={selectedQueueRequest.draft_answer || (selectedQueueRequest.messages?.find(m => m.sender_role === 'agent' || m.sender_role === 'ai_draft')?.body) || "Based on your policy handbook terms, your deductible and coverage details have been verified."}
+                          defaultValue={
+                            selectedQueueRequest.draft_answer || 
+                            (selectedQueueRequest.messages?.find(m => m.sender_role === 'agent' || m.sender_role === 'ai_draft')?.body) || 
+                            `Dear Customer,\n\nThank you for reaching out to NorthBridge Assurance.\n\nRegarding your inquiry for policy ${selectedQueueRequest.policy_number || 'provisions'}, your documentation has been analyzed and coverage terms have been verified.\n\nWe will get back to you soon. Please keep checking your Customer Assistance portal regularly until further updates.\n\nRegards,\nCustomer Support Team,\nNorthBridge Assurance Pvt. Ltd.`
+                          }
                           id={`edit-response-${selectedQueueRequest.id}`}
                         />
                       </div>
