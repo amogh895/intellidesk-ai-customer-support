@@ -8,7 +8,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from src.db_pg import get_db
-from src.models import CustomerModel
+from src.models import CustomerModel, StaffModel
+from src.config.config import settings
 
 SECRET_KEY = os.getenv("JWT_SECRET", "intellidesk_secret_jwt_key_2026_northbridge")
 ALGORITHM = "HS256"
@@ -66,21 +67,17 @@ def get_current_customer(
     """
     FastAPI dependency enforcing Customer Realm authentication.
     Returns authenticated CustomerModel object.
-    Raises 401 if missing or invalid token.
+    Raises 401/403 if missing or invalid token.
     """
     if not credentials or not credentials.credentials:
-        # Fallback for demo testing if header missing: return default CRM-101
-        customer = db.query(CustomerModel).filter(CustomerModel.id == "CRM-101").first()
-        if customer:
-            return customer
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Customer realm authentication required."
+            detail="Customer realm authentication required. Please log in."
         )
 
     payload = decode_access_token(credentials.credentials)
     realm = payload.get("realm")
-    customer_id = payload.get("sub")
+    customer_id = payload.get("sub") or payload.get("customer_id")
 
     if realm != "customer" or not customer_id:
         raise HTTPException(
@@ -102,17 +99,14 @@ def get_current_staff(
 ) -> Dict[str, Any]:
     """
     FastAPI dependency enforcing Staff Realm authentication.
-    Returns staff user info payload.
-    Raises 401/403 if invalid or not staff realm.
+    Returns staff user info payload (sub, role, tier, team, staff_id).
+    Raises 401/403 if invalid or missing token.
     """
     if not credentials or not credentials.credentials:
-        # Default staff fallback for legacy non-bearer calls
-        return {
-            "email": "alex.mercer@northbridge.com",
-            "name": "Alex Mercer",
-            "role": "Customer Service Manager (CSM)",
-            "realm": "staff"
-        }
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Staff authentication required. Please log in."
+        )
 
     payload = decode_access_token(credentials.credentials)
     realm = payload.get("realm")
@@ -124,3 +118,47 @@ def get_current_staff(
         )
 
     return payload
+
+def require_senior_csr_or_csm(staff: Dict[str, Any] = Depends(get_current_staff)) -> Dict[str, Any]:
+    """Requires at least Tier 2 (Technical Support Specialist or CSM)"""
+    role = staff.get("role", "")
+    tier = staff.get("tier", 3)
+    if tier > 2 and role not in ["Customer Service Manager (CSM)", "Technical Support Specialist (Senior CSR)"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access Denied: Action requires Technical Support Specialist (Senior CSR) or Customer Service Manager (CSM) privileges."
+        )
+    return staff
+
+def require_csm(staff: Dict[str, Any] = Depends(get_current_staff)) -> Dict[str, Any]:
+    """Strictly requires Tier 1 Customer Service Manager (CSM)"""
+    role = staff.get("role", "")
+    tier = staff.get("tier", 3)
+    if tier != 1 and role != "Customer Service Manager (CSM)":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access Denied: Action strictly requires Customer Service Manager (CSM) role."
+        )
+    return staff
+
+def validate_approval_permission(staff: Dict[str, Any], amount: float) -> None:
+    """
+    Enforces RBAC on payout amounts:
+    - Support Agent: 403 Forbidden on all approvals
+    - Level 1 (< 100,000 INR): Senior CSR or CSM
+    - Level 2 (>= 100,000 INR): CSM only
+    """
+    role = staff.get("role", "")
+    tier = staff.get("tier", 3)
+
+    if role == "Support Agent" or tier > 2:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="RBAC Violation: Support Agents do not have approval permissions. Escalated to Senior CSR or CSM."
+        )
+
+    if amount >= settings.LEVEL_1_APPROVAL_MAX_INR and tier != 1 and role != "Customer Service Manager (CSM)":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"RBAC Violation: Payout of ₹{amount:,.0f} requires Level 2 (Customer Service Manager) authorization."
+        )

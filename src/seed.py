@@ -11,7 +11,8 @@ from src.db_pg import SessionLocal, init_db
 from src.models import (
     CustomerModel, PolicyModel, ClaimModel, TicketModel,
     ApprovalQueueModel, AuditLogModel, CustomerConversationModel,
-    EvaluationMetricModel, SupportRequestModel, RequestMessageModel
+    EvaluationMetricModel, SupportRequestModel, RequestMessageModel,
+    StaffModel
 )
 
 load_dotenv()
@@ -24,6 +25,50 @@ def hash_password(password: str = "Customer@2026") -> str:
     pwd_bytes = password.encode('utf-8')[:72]
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
+
+STAFF_DIRECTORY_SEEDS = [
+    # Tier 1: Customer Service Manager (CSM)
+    {"id": "STAFF-001", "name": "Alex Mercer", "email": "alex.mercer@northbridge.com", "password": "CSM@2026", "role": "Customer Service Manager (CSM)", "tier": 1, "team": "Executive", "supervisor": None, "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"},
+
+    # Tier 2: Technical Support Specialist (Senior CSR) — Team Alpha & Bravo
+    {"id": "STAFF-002", "name": "Riya Kapoor", "email": "riya.kapoor@northbridge.com", "password": "SrCSR@2026A", "role": "Technical Support Specialist (Senior CSR)", "tier": 2, "team": "Team Alpha", "supervisor": "Alex Mercer", "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"},
+    {"id": "STAFF-003", "name": "James Wilson", "email": "james.wilson@northbridge.com", "password": "SrCSR@2026B", "role": "Technical Support Specialist (Senior CSR)", "tier": 2, "team": "Team Bravo", "supervisor": "Alex Mercer", "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"},
+
+    # Tier 3: Support Agent (CSR) — Team Alpha
+    {"id": "STAFF-004", "name": "Sarah Jenkins", "email": "sarah.jenkins@northbridge.com", "password": "CSR@2026A1", "role": "Support Agent", "tier": 3, "team": "Team Alpha", "supervisor": "Riya Kapoor", "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"},
+    {"id": "STAFF-005", "name": "Anita Ray", "email": "anita.ray@northbridge.com", "password": "CSR@2026A2", "role": "Support Agent", "tier": 3, "team": "Team Alpha", "supervisor": "Riya Kapoor", "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"},
+    {"id": "STAFF-006", "name": "David Chen", "email": "david.chen@northbridge.com", "password": "CSR@2026A3", "role": "Support Agent", "tier": 3, "team": "Team Alpha", "supervisor": "Riya Kapoor", "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"},
+    {"id": "STAFF-007", "name": "Priya Nair", "email": "priya.nair@northbridge.com", "password": "CSR@2026A4", "role": "Support Agent", "tier": 3, "team": "Team Alpha", "supervisor": "Riya Kapoor", "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"},
+
+    # Tier 3: Support Agent (CSR) — Team Bravo
+    {"id": "STAFF-008", "name": "Rohan Gupta", "email": "rohan.gupta@northbridge.com", "password": "CSR@2026B1", "role": "Support Agent", "tier": 3, "team": "Team Bravo", "supervisor": "James Wilson", "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"},
+    {"id": "STAFF-009", "name": "Emily Stone", "email": "emily.stone@northbridge.com", "password": "CSR@2026B2", "role": "Support Agent", "tier": 3, "team": "Team Bravo", "supervisor": "James Wilson", "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"},
+    {"id": "STAFF-010", "name": "Arjun Mehta", "email": "arjun.mehta@northbridge.com", "password": "CSR@2026B3", "role": "Support Agent", "tier": 3, "team": "Team Bravo", "supervisor": "James Wilson", "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"},
+    {"id": "STAFF-011", "name": "Lisa Park", "email": "lisa.park@northbridge.com", "password": "CSR@2026B4", "role": "Support Agent", "tier": 3, "team": "Team Bravo", "supervisor": "James Wilson", "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"}
+]
+
+def seed_staff(db):
+    """Seed or update staff directory with bcrypt-hashed credentials"""
+    for s in STAFF_DIRECTORY_SEEDS:
+        existing = db.query(StaffModel).filter(StaffModel.id == s["id"]).first()
+        if not existing:
+            staff_obj = StaffModel(
+                id=s["id"],
+                name=s["name"],
+                email=s["email"],
+                role=s["role"],
+                tier=s["tier"],
+                team=s["team"],
+                supervisor=s["supervisor"],
+                avatar=s["avatar"],
+                hashed_password=hash_password(s["password"])
+            )
+            db.add(staff_obj)
+        else:
+            # Update password if needed
+            if not existing.hashed_password:
+                existing.hashed_password = hash_password(s["password"])
+    db.commit()
 
 DEFAULT_HASHED_PASSWORD = hash_password("Customer@2026")
 
@@ -65,11 +110,14 @@ def seed_database():
     db = SessionLocal()
 
     try:
+        # Always ensure staff directory is seeded
+        seed_staff(db)
+
         # Check if customer passwords & support requests exist
         existing_count = db.query(CustomerModel).count()
         sample_cust = db.query(CustomerModel).first()
         if existing_count >= 200 and sample_cust and sample_cust.hashed_password:
-            print(f"Database already contains {existing_count} customers with hashed passwords. Skipping re-seed.")
+            print(f"Database already contains {existing_count} customers with hashed passwords. Staff directory verified.")
             return
 
         print("Seeding ~200 Customer, Policy, Claim, Ticket, Support Request, and Conversation records...")

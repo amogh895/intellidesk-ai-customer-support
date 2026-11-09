@@ -25,4 +25,8 @@ class Settings:
     # Escalations always require human approval regardless of this flag.
     COPILOT_AUTONOMY: bool = os.getenv("COPILOT_AUTONOMY", "true").lower() in ("1", "true", "yes")
 
+    # RBAC Thresholds
+    LEVEL_1_APPROVAL_MAX_INR: float = 100000.0 # Under ₹1,00,000: Senior CSR or CSM
+    DUAL_APPROVAL_THRESHOLD_INR: float = 500000.0 # Above ₹5,00,000: CSM + Dual Approver
+
 settings = Settings()

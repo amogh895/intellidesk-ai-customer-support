@@ -1,247 +1,28 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 import { useVoiceIntake } from "./hooks/useVoiceIntake";
+import { API_URL } from "./config";
+import ClaimsPipelineBoard from "./components/ClaimsPipelineBoard";
+import AnalyticsDashboard from "./components/AnalyticsDashboard";
+import ApprovalDecisionModal from "./components/ApprovalDecisionModal";
+import EvidenceViewerModal from "./components/EvidenceViewerModal";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api";
+// Feature flag for Evaluation tab
+const ADMIN_DEV = typeof window !== "undefined" && window.location.search.includes("admin_dev=1");
 
-// ─── STAFF DIRECTORY WITH AUTHENTICATION CREDENTIALS ───
-const STAFF_DIRECTORY = [
-  // Tier 1: Customer Service Manager (CSM)
-  { id: "STAFF-001", name: "Alex Mercer", email: "alex.mercer@northbridge.com", password: "CSM@2026", role: "Customer Service Manager (CSM)", tier: 1, team: "Executive", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
-
-  // Tier 2: Technical Support Specialist (Senior CSR) — Team A
-  { id: "STAFF-002", name: "Riya Kapoor", email: "riya.kapoor@northbridge.com", password: "SrCSR@2026A", role: "Technical Support Specialist (Senior CSR)", tier: 2, team: "Team Alpha", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
-  // Tier 2: Technical Support Specialist (Senior CSR) — Team B
-  { id: "STAFF-003", name: "James Wilson", email: "james.wilson@northbridge.com", password: "SrCSR@2026B", role: "Technical Support Specialist (Senior CSR)", tier: 2, team: "Team Bravo", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
-
-  // Tier 3: Support Agent (CSR) — Team Alpha (under Riya Kapoor)
-  { id: "STAFF-004", name: "Sarah Jenkins", email: "sarah.jenkins@northbridge.com", password: "CSR@2026A1", role: "Support Agent", tier: 3, team: "Team Alpha", supervisor: "Riya Kapoor", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
-  { id: "STAFF-005", name: "Anita Ray", email: "anita.ray@northbridge.com", password: "CSR@2026A2", role: "Support Agent", tier: 3, team: "Team Alpha", supervisor: "Riya Kapoor", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
-  { id: "STAFF-006", name: "David Chen", email: "david.chen@northbridge.com", password: "CSR@2026A3", role: "Support Agent", tier: 3, team: "Team Alpha", supervisor: "Riya Kapoor", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
-  { id: "STAFF-007", name: "Priya Nair", email: "priya.nair@northbridge.com", password: "CSR@2026A4", role: "Support Agent", tier: 3, team: "Team Alpha", supervisor: "Riya Kapoor", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
-
-  // Tier 3: Support Agent (CSR) — Team Bravo (under James Wilson)
-  { id: "STAFF-008", name: "Rohan Gupta", email: "rohan.gupta@northbridge.com", password: "CSR@2026B1", role: "Support Agent", tier: 3, team: "Team Bravo", supervisor: "James Wilson", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
-  { id: "STAFF-009", name: "Emily Stone", email: "emily.stone@northbridge.com", password: "CSR@2026B2", role: "Support Agent", tier: 3, team: "Team Bravo", supervisor: "James Wilson", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
-  { id: "STAFF-010", name: "Arjun Mehta", email: "arjun.mehta@northbridge.com", password: "CSR@2026B3", role: "Support Agent", tier: 3, team: "Team Bravo", supervisor: "James Wilson", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" },
-  { id: "STAFF-011", name: "Lisa Park", email: "lisa.park@northbridge.com", password: "CSR@2026B4", role: "Support Agent", tier: 3, team: "Team Bravo", supervisor: "James Wilson", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" }
-];
-
-// ─── GENERATE 200 FULLY CONSISTENT CUSTOMER RECORDS FOR INITIAL STATE ───
-const POLICY_TYPES = [
-  "Comprehensive Private Car Policy",
-  "Third Party + Theft Coverage",
-  "Commercial Fleet Vehicle Policy",
-  "Zero Depreciation Motor Shield",
-  "EV Battery & Drive Cover"
-];
-
-const RISK_TIERS = ["Low", "Medium", "High"];
-
-const COVERAGE_OPTIONS = [
-  "Zero Depreciation, Engine Protect, Roadside Assistance, NCB 35%",
-  "Third Party Property Damage up to ₹7.5 Lakhs, Fire & Theft",
-  "Fleet Comprehensive, Goods In Transit Cover, Driver PA ₹15L",
-  "Full Bumper-to-Bumper Indemnity, Hydrostatic Lock Cover, Key Replacement",
-  "EV High Voltage Battery Warranty, Wall Charger Surge Protection, Towing Support"
-];
-
-const NAMES_SEED = [
-  "Rahul Verma", "Priya Sharma", "Amit Patel", "Sneha Reddy", "Vikram Singh",
-  "Ananya Iyer", "Rohan Gupta", "Deepika Padukone", "Karan Malhotra", "Pooja Hegde",
-  "Siddharth Rao", "Kavya Nair", "Aditya Joshi", "Meera Sen", "Arjun Kapoor",
-  "Neha Agarwal", "Varun Dhawan", "Shraddha Das", "Gaurav Mehta", "Ritu Saxena"
-];
-
-const generate200Customers = () => {
-  const custs = [
-    {
-      id: "CRM-101",
-      name: "Rahul Verma",
-      email: "rahul.verma@example.com",
-      phone: "+91 98765 43210",
-      policy_number: "POL-NB-2026-9921",
-      policy_type: "Comprehensive Private Car Policy",
-      status: "Active",
-      premium: 18450,
-      risk_tier: "Low",
-      coverage_details: "Zero Depreciation, Engine Protect, Roadside Assistance, NCB 35%",
-      claims_history: [
-        { claim_id: "CLM-8812", date: "2025-11-14", amount: 12500, status: "Settled", reason: "Bumper damage repair" }
-      ]
-    },
-    {
-      id: "CRM-102",
-      name: "Priya Sharma",
-      email: "priya.sharma@example.com",
-      phone: "+91 91234 56789",
-      policy_number: "POL-NB-2026-4410",
-      policy_type: "Third Party + Theft Coverage",
-      status: "Active",
-      premium: 9200,
-      risk_tier: "Medium",
-      coverage_details: "Third Party Property Damage up to ₹7.5 Lakhs, Fire & Theft",
-      claims_history: []
-    },
-    {
-      id: "CRM-103",
-      name: "Amit Patel",
-      email: "amit.patel@example.com",
-      phone: "+91 99887 76655",
-      policy_number: "POL-NB-2026-1189",
-      policy_type: "Commercial Fleet Vehicle Policy",
-      status: "Under Review",
-      premium: 45000,
-      risk_tier: "High",
-      coverage_details: "Fleet Comprehensive, Goods In Transit Cover, Driver PA ₹15L",
-      claims_history: [
-        { claim_id: "CLM-9104", date: "2026-02-01", amount: 84000, status: "Under Review", reason: "Multi-vehicle highway collision" }
-      ]
-    }
-  ];
-
-  for (let i = 104; i <= 301; i++) {
-    const nameStr = NAMES_SEED[(i - 104) % NAMES_SEED.length] + ` (${i})`;
-    const pType = POLICY_TYPES[i % POLICY_TYPES.length];
-    const risk = RISK_TIERS[i % RISK_TIERS.length];
-    const cov = COVERAGE_OPTIONS[i % COVERAGE_OPTIONS.length];
-    custs.push({
-      id: `CRM-${i}`,
-      name: nameStr,
-      email: `customer${i}@northbridge.com`,
-      phone: `+91 98${(i * 12345).toString().substring(0, 8)}`,
-      policy_number: `POL-NB-2026-${i * 37 % 9000 + 1000}`,
-      policy_type: pType,
-      status: i % 7 === 0 ? "Under Review" : "Active",
-      premium: 12000 + (i * 250) % 35000,
-      risk_tier: risk,
-      coverage_details: cov,
-      claims_history: i % 3 === 0 ? [
-        { claim_id: `CLM-${5000 + i}`, date: "2026-01-15", amount: 15000 + (i * 1200) % 75000, status: i % 2 === 0 ? "Settled" : "Under Review", reason: "Vehicle collision repair claim" }
-      ] : []
-    });
-  }
-  return custs;
-};
-
-const INITIAL_CUSTOMERS = generate200Customers();
-
-const INITIAL_PENDING_APPROVALS = [
-  {
-    id: "APP-401",
-    thread_id: "tr_8f9a2b1c",
-    customer_id: "CRM-103",
-    customer_name: "Amit Patel",
-    action_type: "Claim Payout Approval",
-    amount: 84000,
-    requestor: "Claims HITL Agent",
-    risk_tier: "High Risk",
-    confidence: 68,
-    details: "Commercial fleet claim CLM-9104 exceeds single-agent payout limit ($1,000 threshold). Policy Clause 6.1 deductible applies.",
-    status: "pending",
-    required_level: 2,
-    required_role: "Customer Service Manager (CSM)",
-    timestamp: "2026-09-15 23:10"
-  },
-  {
-    id: "APP-402",
-    thread_id: "tr_3c4d5e6f",
-    customer_id: "CRM-101",
-    customer_name: "Rahul Verma",
-    action_type: "NCB Premium Discount Override",
-    amount: 3200,
-    requestor: "Policy RAG Agent",
-    risk_tier: "Low Risk",
-    confidence: 81,
-    details: "Customer requested 40% NCB instead of 35% standard band. Requires supervisor approval per Clause 8.3.",
-    status: "pending",
-    required_level: 1,
-    required_role: "Technical Support Specialist (Senior CSR)",
-    timestamp: "2026-09-15 22:45"
-  }
-];
-
-const INITIAL_AUDIT_LOGS = [
-  {
-    trace_id: "tr_9a8f12c4",
-    timestamp: "2026-09-15 23:38:12",
-    actor: "Supervisor Agent",
-    role: "AI Router",
-    action: "CLASSIFY_INTENT",
-    intent: "policy_rag",
-    status: "COMPLETED",
-    compliance: "SOC2 PASSED",
-    details: "Routed query to Policy RAG Agent. Top vector match: Clause 4 (Deductibles)."
-  },
-  {
-    trace_id: "tr_8f9a2b1c",
-    timestamp: "2026-09-15 23:35:40",
-    actor: "Claims HITL Agent",
-    role: "AI Agent",
-    action: "SUSPEND_FOR_HITL",
-    intent: "escalate",
-    status: "PENDING_APPROVAL",
-    compliance: "2-LEVEL RBAC (Level 2: Customer Service Manager)",
-    details: "Payout amount ₹84,000 exceeds $1,000 threshold. Suspended for supervisor review."
-  }
-];
-
-const INITIAL_TICKETS = [];
-
-const INITIAL_KB_CLAUSES = [
-  { clause: "Clause 1: Scope of Cover & Eligibility", content: "Indemnity against accidental loss, external damage, fire, theft, and third-party liabilities for private motor vehicles.", doc: "Vehicle_Insurance_Policy_Handbook_2026_2027.md" },
-  { clause: "Clause 2: Depreciation Scale for Claim Settlements", content: "Rubber/plastic parts: 50%, Batteries: 50%, Glass: 0%, Metal parts: Age-graded unless Zero Dep rider active.", doc: "Vehicle_Insurance_Policy_Handbook_2026_2027.md" },
-  { clause: "Clause 3: No Claim Bonus (NCB) Entitlement", content: "NCB scale: 1yr: 20%, 2yrs: 25%, 3yrs: 35%, 4yrs: 45%, 5yrs: 50%. Transferred upon vehicle replacement.", doc: "Vehicle_Insurance_Policy_Handbook_2026_2027.md" },
-  { clause: "Clause 4: Deductibles & Compulsory Excess", content: "Compulsory deductible: Vehicles <=1500cc: ₹1,000; Vehicles >1500cc: ₹2,000.", doc: "Vehicle_Insurance_Policy_Handbook_2026_2027.md" }
-];
-
-const INITIAL_EVAL_METRICS = [
-  { metric_name: "Context Recall", score: 87.4, chunk_size_config: 500, benchmark_status: "Target Met" },
-  { metric_name: "Faithfulness", score: 92.1, chunk_size_config: 500, benchmark_status: "Target Met" },
-  { metric_name: "Answer Relevancy", score: 89.8, chunk_size_config: 500, benchmark_status: "Target Met" },
-  { metric_name: "Harmfulness / Safety", score: 0.0, chunk_size_config: 500, benchmark_status: "Target Met" }
-];
-
-const INITIAL_CONVERSATIONS = [
-  {
-    id: "CONV-1001",
-    customer_id: "CRM-101",
-    customer_name: "Rahul Verma",
-    agent_id: "AGT-304",
-    agent_name: "Sarah Jenkins (Tier 3 Support)",
-    channel: "Voice Intake (STT)",
-    caller_sentiment: "anxious",
-    transcript: "Caller inquiry regarding compulsory deductible for minor parking scrape under POL-NB-2026-9921.",
-    ai_copilot_response: "Copilot retrieved Clause 4 (Deductibles ₹1,000) and verified Zero Depreciation add-on rider active. Drafted response for Tier 3 agent.",
-    resolution_status: "Resolved",
-    timestamp: "2026-09-15 23:40:12"
-  },
-  {
-    id: "CONV-1002",
-    customer_id: "CRM-103",
-    customer_name: "Amit Patel",
-    agent_id: "AGT-309",
-    agent_name: "David Chen (Tier 3 Support)",
-    channel: "Voice Intake (STT)",
-    caller_sentiment: "frustrated",
-    transcript: "Commercial fleet manager inquiry regarding status of highway collision claim CLM-9104 for ₹84,000.",
-    ai_copilot_response: "Flagged required Level 2 Claims Manager approval due to payout exceeding $1,000 threshold. Suspended for HITL approval queue.",
-    resolution_status: "Escalated to Level 2 HITL",
-    timestamp: "2026-09-15 23:15:00"
-  },
-  {
-    id: "CONV-1003",
-    customer_id: "CRM-102",
-    customer_name: "Priya Sharma",
-    agent_id: "AGT-301",
-    agent_name: "Anita Ray (Tier 3 Support)",
-    channel: "Text Chat",
-    caller_sentiment: "neutral",
-    transcript: "Customer requested information on NCB discount rollover for policy renewal POL-NB-2026-4410.",
-    ai_copilot_response: "Copilot cited Clause 3 NCB Entitlement. Verified 25% NCB tier applicable for next renewal cycle.",
-    resolution_status: "Resolved",
-    timestamp: "2026-09-15 22:10:45"
-  }
+// Quick staff directory for role selection in demo/testing (strictly metadata, NO passwords)
+const QUICK_STAFF_DIRECTORY = [
+  { id: "STAFF-001", name: "Alex Mercer", email: "alex.mercer@northbridge.com", role: "Customer Service Manager (CSM)", tier: 1, team: "Executive" },
+  { id: "STAFF-002", name: "Riya Kapoor", email: "riya.kapoor@northbridge.com", role: "Technical Support Specialist (Senior CSR)", tier: 2, team: "Team Alpha" },
+  { id: "STAFF-003", name: "James Wilson", email: "james.wilson@northbridge.com", role: "Technical Support Specialist (Senior CSR)", tier: 2, team: "Team Bravo" },
+  { id: "STAFF-004", name: "Sarah Jenkins", email: "sarah.jenkins@northbridge.com", role: "Support Agent", tier: 3, team: "Team Alpha" },
+  { id: "STAFF-005", name: "Anita Ray", email: "anita.ray@northbridge.com", role: "Support Agent", tier: 3, team: "Team Alpha" },
+  { id: "STAFF-006", name: "David Chen", email: "david.chen@northbridge.com", role: "Support Agent", tier: 3, team: "Team Alpha" },
+  { id: "STAFF-007", name: "Priya Nair", email: "priya.nair@northbridge.com", role: "Support Agent", tier: 3, team: "Team Alpha" },
+  { id: "STAFF-008", name: "Rohan Gupta", email: "rohan.gupta@northbridge.com", role: "Support Agent", tier: 3, team: "Team Bravo" },
+  { id: "STAFF-009", name: "Emily Stone", email: "emily.stone@northbridge.com", role: "Support Agent", tier: 3, team: "Team Bravo" },
+  { id: "STAFF-010", name: "Arjun Mehta", email: "arjun.mehta@northbridge.com", role: "Support Agent", tier: 3, team: "Team Bravo" },
+  { id: "STAFF-011", name: "Lisa Park", email: "lisa.park@northbridge.com", role: "Support Agent", tier: 3, team: "Team Bravo" }
 ];
 
 export default function App() {
@@ -249,34 +30,55 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   // 3 Hierarchical RBAC Posts State
-  // Role Tiers:
-  // Tier 3: "Support Agent" (Frontline voice intake & copilot assist)
-  // Tier 2: "Technical Support Specialist (Senior CSR)" (Team oversight, low/medium risk overrides)
-  // Tier 1: "Customer Service Manager (CSM)" (Full executive access across all 200 records & high payouts)
   const [user, setUser] = useState({
     name: "Alex Mercer",
     role: "Customer Service Manager (CSM)",
     email: "alex.mercer@northbridge.com",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"
+    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150",
+    token: null
   });
 
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [copilotSubTab, setCopilotSubTab] = useState("chat");
 
-  // All 200 Real Customer Records
-  const [customers, setCustomers] = useState(INITIAL_CUSTOMERS);
-  const [selectedCustomer, setSelectedCustomer] = useState(INITIAL_CUSTOMERS[0]);
+  // Dynamic Server-Backed State
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
-  const [pendingApprovals, setPendingApprovals] = useState(INITIAL_PENDING_APPROVALS);
-  const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
-  const [tickets, setTickets] = useState(INITIAL_TICKETS);
-  const [kbClauses, setKbClauses] = useState(INITIAL_KB_CLAUSES);
-  const [kbStats, setKbStats] = useState({ vector_database: "PostgreSQL + pgvector Store", total_embeddings: 107, chunk_strategy: "500 Characters (Overlap: 100)" });
-  const [evalMetrics, setEvalMetrics] = useState(INITIAL_EVAL_METRICS);
+  const [searchResults, setSearchResults] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [tickets, setTickets] = useState([]);
+  const [kbClauses, setKbClauses] = useState([]);
+  const [kbFilterQuery, setKbFilterQuery] = useState("");
+  const [kbStats] = useState({ vector_database: "PostgreSQL + pgvector", total_embeddings: 107 });
+  const [evalMetrics, setEvalMetrics] = useState([]);
+  const [pipelineClaims, setPipelineClaims] = useState([]);
+  const [dashboardMetrics, setDashboardMetrics] = useState({
+    avg_latency: "1.2s",
+    groundedness_rate: "96.4%",
+    pending_approvals: 0,
+    open_claims: 0
+  });
+  const [dataStatus, setDataStatus] = useState("loading"); // "loading" | "ready" | "error"
+  const [sseStatus, setSseStatus] = useState("offline"); // "connected" | "reconnecting" | "offline"
+
+  // Decision & Evidence Modals
+  const [approvalModalState, setApprovalModalState] = useState({
+    isOpen: false,
+    approval: null,
+    type: "grant",
+    isSubmitting: false
+  });
+  const [evidenceModalState, setEvidenceModalState] = useState({
+    isOpen: false,
+    claim: null
+  });
 
   // Centralized Call Ledger DB state (Restricted to Senior CSR & CSM)
-  const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS);
+  const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [conversationSearchQuery, setConversationSearchQuery] = useState("");
 
@@ -298,7 +100,7 @@ export default function App() {
   const [portalInputMode, setPortalInputMode] = useState("text"); // "text" or "voice"
   const [portalTextQuery, setPortalTextQuery] = useState("");
   const [portalVoiceConfirmedQuery, setPortalVoiceConfirmedQuery] = useState("");
-  const [portalVoiceConfirmed, setPortalVoiceConfirmed] = useState(false);
+  const [_portalVoiceConfirmed, setPortalVoiceConfirmed] = useState(false);
 
   const voiceIntake = useVoiceIntake();
 
@@ -313,7 +115,7 @@ export default function App() {
   useEffect(() => {
     if (portalAuth.isAuthenticated && portalAuth.customer?.id) {
       const custId = portalAuth.customer.id;
-      const sseUrl = `${API_BASE_URL}/portal/requests/stream?customer_id=${custId}`;
+      const sseUrl = `${API_URL}/portal/requests/stream?customer_id=${custId}`;
       const eventSource = new EventSource(sseUrl);
 
       eventSource.addEventListener("request_updated", (e) => {
@@ -326,7 +128,7 @@ export default function App() {
         }
       });
 
-      eventSource.onerror = (err) => {
+      eventSource.onerror = (_err) => {
         console.warn("Customer SSE connection notice");
       };
 
@@ -339,9 +141,9 @@ export default function App() {
   const handlePortalDemoLogin = async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1500);
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-      const res = await fetch(`${API_BASE_URL}/portal/auth/demo-login`, {
+      const res = await fetch(`${API_URL}/portal/auth/demo-login`, {
         method: "POST",
         signal: controller.signal
       });
@@ -358,35 +160,10 @@ export default function App() {
         fetchCustomerRequests(data.access_token);
         return;
       }
-    } catch (err) {
-      console.log("Backend demo auth offline. Using client state.");
+    } catch {
+      console.log("Customer demo login failed");
     }
-
-    const defaultCust = customers[0] || {
-      id: "CRM-101",
-      name: "Rahul Verma",
-      email: "rahul.verma@example.com",
-      phone: "+91 98765 43210",
-      policy_number: "POL-NB-2026-9921",
-      policy_type: "Comprehensive Private Car Policy",
-      risk_tier: "Low"
-    };
-
-    setPortalAuth({
-      isAuthenticated: true,
-      customer: {
-        id: defaultCust.id,
-        name: defaultCust.name,
-        email: defaultCust.email,
-        phone: defaultCust.phone,
-        policy_number: defaultCust.policy_number,
-        policy_type: defaultCust.policy_type,
-        risk_tier: defaultCust.risk_tier,
-        realm: "customer"
-      },
-      token: `demo_token_${defaultCust.id.toLowerCase()}`
-    });
-    showToast(`Launched Demo Customer Portal (${defaultCust.name} — ${defaultCust.id})`);
+    showToast("❌ Unable to authenticate customer. Ensure backend is running.");
   };
 
   const handlePortalCustomerLogin = async (e) => {
@@ -396,16 +173,11 @@ export default function App() {
     const password = form.password.value;
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1500);
-
-      const res = await fetch(`${API_BASE_URL}/portal/auth/login`, {
+      const res = await fetch(`${API_URL}/auth/customer/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailInput, password }),
-        signal: controller.signal
+        body: JSON.stringify({ email: emailInput, password })
       });
-      clearTimeout(timeoutId);
 
       if (res.ok) {
         const data = await res.json();
@@ -417,50 +189,25 @@ export default function App() {
         showToast(`Authenticated Customer: ${data.customer.name} (${data.customer.id})`);
         fetchCustomerRequests(data.access_token);
         return;
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast(`❌ Login Failed: ${errData.detail || "Invalid credentials."}`);
       }
-    } catch (err) {
-      console.log("Backend auth offline. Executing client-side lookup for CRM-101 to CRM-301.");
-    }
-
-    // Flexible client-side lookup matching email, CRM ID, or CRM number
-    const custMatch = customers.find(
-      c => c.email.toLowerCase() === emailInput ||
-           c.id.toLowerCase() === emailInput ||
-           c.id.toLowerCase().replace("-", "") === emailInput.replace("-", "") ||
-           `customer${c.id.replace('CRM-', '')}@northbridge.com` === emailInput
-    );
-
-    if (custMatch) {
-      setPortalAuth({
-        isAuthenticated: true,
-        customer: {
-          id: custMatch.id,
-          name: custMatch.name,
-          email: custMatch.email,
-          phone: custMatch.phone,
-          policy_number: custMatch.policy_number,
-          policy_type: custMatch.policy_type,
-          risk_tier: custMatch.risk_tier,
-          realm: "customer"
-        },
-        token: `demo_token_${custMatch.id.toLowerCase()}`
-      });
-      showToast(`Authenticated Customer: ${custMatch.name} (${custMatch.id}) — Policy ${custMatch.policy_number}`);
-    } else {
-      showToast("❌ Login Failed: Customer record not found. Please select an account from CRM-101 to CRM-301.");
+    } catch {
+      showToast("❌ Unable to connect to authentication server. Please check backend connection.");
     }
   };
 
   const fetchCustomerRequests = async (token) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/portal/requests`, {
+      const res = await fetch(`${API_URL}/portal/requests`, {
         headers: { Authorization: `Bearer ${token || ""}` }
       });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) setPortalRequests(data);
       }
-    } catch (err) {
+    } catch {
       console.log("Offline portal requests fetch");
     }
   };
@@ -476,23 +223,14 @@ export default function App() {
 
     const channelType = portalInputMode === "voice" ? "voice" : "text";
 
-    // Dynamically create & track ticket entry in real-time history
-    const customerObj = portalAuth.customer || { id: "CRM-101", name: "Rahul Verma", policy_number: "POL-NB-2026-9921", risk_tier: "Low" };
-    const dynamicTicket = {
-      ticket_id: `TCK-2026-${(tickets.length + 1).toString().padStart(3, "0")}`,
-      customer_id: customerObj.id,
-      customer_name: customerObj.name,
-      policy_number: customerObj.policy_number,
-      issue_type: finalQuery.length > 45 ? finalQuery.substring(0, 45) + "..." : finalQuery,
-      priority: customerObj.risk_tier === "High" ? "High Priority" : "Normal",
-      risk_tier: customerObj.risk_tier || "Low",
-      status: "Active",
-      created_at: new Date().toLocaleString()
-    };
-    setTickets(prev => [dynamicTicket, ...prev]);
+    if (!portalAuth.customer) {
+      showToast("❌ Please authenticate as a customer to submit requests.");
+      return;
+    }
+    const customerObj = portalAuth.customer;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/portal/requests`, {
+      const res = await fetch(`${API_URL}/portal/requests`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -502,37 +240,14 @@ export default function App() {
       });
 
       if (res.ok) {
-        const data = await res.json();
         showToast("✓ Support request submitted & ticket created for approval!");
         fetchCustomerRequests(portalAuth.token);
         fetchStaffIncomingQueue();
       } else {
-        throw new Error("Backend offline");
+        showToast("❌ Failed to submit support request to server.");
       }
-    } catch (err) {
-      const newReq = {
-        id: `REQ-2026-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-        customer_id: customerObj.id,
-        customer_name: customerObj.name,
-        policy_number: customerObj.policy_number,
-        risk_tier: customerObj.risk_tier || "Low",
-        channel: channelType,
-        original_query: finalQuery,
-        redacted_query: finalQuery,
-        status: "new",
-        created_at: new Date().toLocaleString(),
-        messages: [
-          {
-            id: `MSG-${Date.now()}`,
-            sender_role: "customer",
-            body: finalQuery,
-            created_at: new Date().toLocaleString()
-          }
-        ]
-      };
-      setPortalRequests(prev => [newReq, ...prev]);
-      setStaffQueue(prev => [newReq, ...prev]);
-      showToast("✓ Support request submitted & ticket created for approval!");
+    } catch {
+      showToast("❌ Network error connecting to support server.");
     }
 
     setPortalTextQuery("");
@@ -547,38 +262,6 @@ export default function App() {
       id: 1,
       sender: "system",
       text: "IntelliDesk AI Copilot initialized. Multi-Agent Graph ready (Supervisor, Policy RAG, CRM, Claims HITL). Select a customer context or enter a query.",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    },
-    {
-      id: 2,
-      sender: "customer",
-      text: "Hello, I had a minor accident last night. What is the deductible for my policy POL-NB-2026-9921?",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    },
-    {
-      id: 3,
-      sender: "agent",
-      text: "Based on your Comprehensive Private Car Policy (POL-NB-2026-9921), your compulsory deductible is ₹1,000 [1]. However, because your account has the active **Zero Depreciation Rider** [2], replacement of bumper and body components will be covered without standard age depreciation.",
-      confidence: 96,
-      grounded: true,
-      activeAgent: "Policy RAG Agent",
-      citations: [
-        {
-          id: 1,
-          title: "Clause 4: Deductibles & Compulsory Excess",
-          doc: "Vehicle_Insurance_Policy_Handbook_2026_2027.md",
-          snippet: "Compulsory deductible per accidental claim: Vehicles <= 1500cc: ₹1,000; Vehicles > 1500cc: ₹2,000.",
-          similarity: 0.942
-        },
-        {
-          id: 2,
-          title: "Clause 2: Zero Depreciation Add-on Rider",
-          doc: "Vehicle_Insurance_Policy_Handbook_2026_2027.md",
-          snippet: "Zero Depreciation rider eliminates standard 50% depreciation on rubber/nylon/plastic parts during claim settlement.",
-          similarity: 0.915
-        }
-      ],
-      hitlCard: null,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     }
   ]);
@@ -622,7 +305,9 @@ export default function App() {
 
   useEffect(() => {
     if (user.role !== "Support Agent") {
-      fetch(`${API_BASE_URL}/conversations?user_role=${encodeURIComponent(user.role)}`)
+      fetch(`${API_URL}/conversations?user_role=${encodeURIComponent(user.role)}`, {
+        headers: user.token ? { "Authorization": `Bearer ${user.token}` } : {}
+      })
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (Array.isArray(data) && data.length > 0) setConversations(data);
@@ -631,87 +316,105 @@ export default function App() {
     }
   }, [user.role]);
 
-  const fetchRealData = async () => {
+  const fetchRealData = async (tokenOverride) => {
+    const activeToken = tokenOverride || user.token;
+    setDataStatus("loading");
+    const headers = {
+      "Content-Type": "application/json",
+      ...(activeToken ? { "Authorization": `Bearer ${activeToken}` } : {})
+    };
+
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-      const resC = await fetch(`${API_BASE_URL}/crm`, { signal: controller.signal });
+      const [resC, resT, resA, resLog, resCl, resEv, resMetrics, resPipe] = await Promise.all([
+        fetch(`${API_URL}/crm`, { headers, signal: controller.signal }).catch(() => null),
+        fetch(`${API_URL}/tickets`, { headers, signal: controller.signal }).catch(() => null),
+        fetch(`${API_URL}/approvals`, { headers, signal: controller.signal }).catch(() => null),
+        fetch(`${API_URL}/audit-logs`, { headers, signal: controller.signal }).catch(() => null),
+        fetch(`${API_URL}/kb/clauses`, { headers, signal: controller.signal }).catch(() => null),
+        fetch(`${API_URL}/eval/metrics`, { headers, signal: controller.signal }).catch(() => null),
+        fetch(`${API_URL}/metrics/dashboard`, { headers, signal: controller.signal }).catch(() => null),
+        fetch(`${API_URL}/claims/pipeline`, { headers, signal: controller.signal }).catch(() => null)
+      ]);
       clearTimeout(timeoutId);
 
-      if (resC.ok) {
+      if (resC && resC.ok) {
         const dataC = await resC.json();
-        if (Array.isArray(dataC) && dataC.length > 0) {
-          setCustomers(dataC);
-          setSelectedCustomer(dataC[0]);
-        }
+        setCustomers(dataC);
+        if (dataC.length > 0 && !selectedCustomer) setSelectedCustomer(dataC[0]);
       }
-
-      const resT = await fetch(`${API_BASE_URL}/tickets`);
-      if (resT.ok) setTickets(await resT.json());
-
-      const resA = await fetch(`${API_BASE_URL}/approvals`);
-      if (resA.ok) setPendingApprovals(await resA.json());
-
-      const resLog = await fetch(`${API_BASE_URL}/audit-logs`);
-      if (resLog.ok) setAuditLogs(await resLog.json());
-
-      const resKb = await fetch(`${API_BASE_URL}/kb/stats`);
-      if (resKb.ok) setKbStats(await resKb.json());
-
-      const resCl = await fetch(`${API_BASE_URL}/kb/clauses`);
-      if (resCl.ok) setKbClauses(await resCl.json());
-
-      const resEv = await fetch(`${API_BASE_URL}/eval/metrics`);
-      if (resEv.ok) setEvalMetrics(await resEv.json());
+      if (resT && resT.ok) setTickets(await resT.json());
+      if (resA && resA.ok) setPendingApprovals(await resA.json());
+      if (resLog && resLog.ok) setAuditLogs(await resLog.json());
+      if (resCl && resCl.ok) setKbClauses(await resCl.json());
+      if (resEv && resEv.ok) setEvalMetrics(await resEv.json());
+      if (resMetrics && resMetrics.ok) setDashboardMetrics(await resMetrics.json());
+      if (resPipe && resPipe.ok) setPipelineClaims(await resPipe.json());
 
       if (user.role !== "Support Agent") {
-        const resConv = await fetch(`${API_BASE_URL}/conversations?user_role=${encodeURIComponent(user.role)}`);
-        if (resConv.ok) {
+        const resConv = await fetch(`${API_URL}/conversations?user_role=${encodeURIComponent(user.role)}`, { headers }).catch(() => null);
+        if (resConv && resConv.ok) {
           const dataConv = await resConv.json();
-          if (Array.isArray(dataConv) && dataConv.length > 0) setConversations(dataConv);
+          if (Array.isArray(dataConv)) setConversations(dataConv);
         }
       }
 
-    } catch (err) {
-      console.log("Backend offline. Running with client-side 200 customer data pool.");
+      setDataStatus("ready");
+    } catch {
+      setDataStatus("error");
     }
   };
 
   // Login Handler with Role Selection
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     const form = e.target;
     const email = form.email.value.trim().toLowerCase();
     const password = form.password.value;
 
-    const staffMatch = STAFF_DIRECTORY.find(
-      (s) => s.email.toLowerCase() === email && s.password === password
-    );
+    try {
+      const res = await fetch(`${API_URL}/auth/staff/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
 
-    if (!staffMatch) {
-      showToast("❌ Authentication Failed: Invalid email or password. Check your credentials.");
-      return;
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        showToast(`❌ Authentication Failed: ${errData.detail || "Invalid staff credentials"}`);
+        return;
+      }
+
+      const data = await res.json();
+      const staff = data.staff;
+      const token = data.access_token;
+
+      setUser({
+        name: staff.name,
+        role: staff.role,
+        email: staff.email,
+        team: staff.team,
+        tier: staff.tier,
+        staffId: staff.staff_id || staff.id,
+        supervisor: staff.supervisor || null,
+        avatar: staff.avatar,
+        token: token
+      });
+      sessionStorage.setItem("staff_token", token);
+      setIsAuthenticated(true);
+
+      // Default tab based on role abstraction
+      if (staff.role === "Support Agent") setActiveTab("queue");
+      else if (staff.role === "Technical Support Specialist (Senior CSR)") setActiveTab("tickets");
+      else setActiveTab("dashboard");
+
+      showToast(`Authenticated as ${staff.role} — ${staff.name} (${staff.team})`);
+      fetchRealData(token);
+    } catch {
+      showToast("❌ Unable to reach authentication server. Verify backend status.");
     }
-
-    setUser({
-      name: staffMatch.name,
-      role: staffMatch.role,
-      email: staffMatch.email,
-      team: staffMatch.team,
-      tier: staffMatch.tier,
-      staffId: staffMatch.id,
-      supervisor: staffMatch.supervisor || null,
-      avatar: staffMatch.avatar
-    });
-    setIsAuthenticated(true);
-
-    // Default tab based on role abstraction
-    if (staffMatch.role === "Support Agent") setActiveTab("queue");
-    else if (staffMatch.role === "Technical Support Specialist (Senior CSR)") setActiveTab("tickets");
-    else setActiveTab("dashboard");
-
-    showToast(`Authenticated as ${staffMatch.role} — ${staffMatch.name} (${staffMatch.team})`);
   };
 
   // ─── STAFF INCOMING QUEUE STATE & SSE REAL-TIME ALERT ───
@@ -720,22 +423,29 @@ export default function App() {
 
   const fetchStaffIncomingQueue = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/staff/requests`);
+      const res = await fetch(`${API_URL}/staff/requests`, {
+        headers: user.token ? { "Authorization": `Bearer ${user.token}` } : {}
+      });
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) setStaffQueue(data);
+        if (Array.isArray(data)) setStaffQueue(data);
       }
-    } catch (err) {
+    } catch {
       console.log("Offline staff queue fetch");
     }
   };
 
-  // Real-Time SSE Stream for Staff Queue Alerts
+  // Real-Time SSE Stream for Staff Queue Alerts & Events
   useEffect(() => {
     if (isAuthenticated) {
       fetchStaffIncomingQueue();
-      const sseUrl = `${API_BASE_URL}/staff/requests/stream`;
+      setSseStatus("reconnecting");
+      const sseUrl = `${API_URL}/staff/events?token=${user.token || ""}`;
       const eventSource = new EventSource(sseUrl);
+
+      eventSource.onopen = () => {
+        setSseStatus("connected");
+      };
 
       eventSource.addEventListener("new_customer_request", (e) => {
         try {
@@ -747,15 +457,87 @@ export default function App() {
         }
       });
 
-      eventSource.onerror = (err) => {
-        console.warn("Staff SSE stream notice");
+      eventSource.addEventListener("approval_created", (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          showToast(`🛡️ New Approval Required: ${data.claim_id || data.id}`);
+          setPendingApprovals((prev) => [data, ...prev.filter(a => a.id !== data.id)]);
+        } catch (err) {
+          console.error("Error parsing approval_created SSE:", err);
+        }
+      });
+
+      eventSource.addEventListener("approval_resolved", (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          showToast(`✅ Approval Resolved: ${data.id} (${data.status})`);
+          setPendingApprovals((prev) => prev.filter(a => a.id !== data.id));
+        } catch (err) {
+          console.error("Error parsing approval_resolved SSE:", err);
+        }
+      });
+
+      eventSource.addEventListener("ticket_created", (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          showToast(`🎫 New Ticket Created: ${data.id}`);
+          setTickets((prev) => [data, ...prev]);
+        } catch (err) {
+          console.error("Error parsing ticket_created SSE:", err);
+        }
+      });
+
+      eventSource.addEventListener("ticket_updated", (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          setTickets((prev) => prev.map(t => t.id === data.id ? { ...t, ...data } : t));
+        } catch (err) {
+          console.error("Error parsing ticket_updated SSE:", err);
+        }
+      });
+
+      eventSource.addEventListener("kpi_update", (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          setDashboardMetrics((prev) => ({ ...prev, ...data }));
+        } catch (err) {
+          console.error("Error parsing kpi_update SSE:", err);
+        }
+      });
+
+      eventSource.onerror = (_err) => {
+        setSseStatus("offline");
       };
 
       return () => {
         eventSource.close();
+        setSseStatus("offline");
       };
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user.token]);
+
+  // Global Claims & Customer Search Handler
+  const handleSearch = async (query) => {
+    setCustomerSearchQuery(query);
+    if (!query || query.trim().length < 2) {
+      setSearchResults(null);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const res = await fetch(`${API_URL}/search?q=${encodeURIComponent(query.trim())}`, {
+        headers: user.token ? { "Authorization": `Bearer ${user.token}` } : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSearchResults(data);
+      }
+    } catch (err) {
+      console.warn("Search error:", err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const handleProcessRequestWithCopilot = async (reqId) => {
     // Sync ticket status to Under Review
@@ -785,8 +567,9 @@ export default function App() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1500);
 
-      const res = await fetch(`${API_BASE_URL}/staff/requests/${reqId}/process`, {
+      const res = await fetch(`${API_URL}/staff/requests/${reqId}/process`, {
         method: "POST",
+        headers: user.token ? { "Authorization": `Bearer ${user.token}` } : {},
         signal: controller.signal
       });
       clearTimeout(timeoutId);
@@ -912,9 +695,12 @@ export default function App() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1500);
 
-      const res = await fetch(`${API_BASE_URL}/staff/requests/${reqId}/approve`, {
+      const res = await fetch(`${API_URL}/staff/requests/${reqId}/approve`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": user.token ? `Bearer ${user.token}` : ""
+        },
         body: JSON.stringify({
           approved,
           edited_content: editedContent,
@@ -979,20 +765,6 @@ export default function App() {
     setSelectedQueueRequest(null);
   };
 
-  // RBAC Permission Check Utility
-  const canAccessTab = (tabName) => {
-    if (user.role === "Customer Service Manager (CSM)") {
-      return ["dashboard", "queue", "tickets", "approvals", "conversations", "kb", "audit", "eval", "settings"].includes(tabName);
-    }
-    if (user.role === "Technical Support Specialist (Senior CSR)") {
-      return ["queue", "tickets", "approvals", "conversations", "kb", "audit"].includes(tabName);
-    }
-    if (user.role === "Support Agent") {
-      return ["copilot", "queue", "tickets"].includes(tabName); // Frontline only
-    }
-    return true;
-  };
-
   // Send Query to Real Agent Backend
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -1012,12 +784,15 @@ export default function App() {
     setMessages((prev) => [...prev, userMsg]);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/query`, {
+      const res = await fetch(`${API_URL}/query`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": user.token ? `Bearer ${user.token}` : ""
+        },
         body: JSON.stringify({
           query: currentQuery,
-          customer_id: selectedCustomer ? selectedCustomer.id : "CRM-101",
+          customer_id: selectedCustomer ? selectedCustomer.id : "",
           autonomy: autonomyEnabled
         })
       });
@@ -1039,76 +814,28 @@ export default function App() {
         setMessages((prev) => [...prev, botMsg]);
         handleSpeakText(agentData.response, agentData.sentiment);
 
-        const resA = await fetch(`${API_BASE_URL}/approvals`);
+        const resA = await fetch(`${API_URL}/approvals`, {
+          headers: user.token ? { "Authorization": `Bearer ${user.token}` } : {}
+        });
         if (resA.ok) setPendingApprovals(await resA.json());
       } else {
-        throw new Error("Backend offline");
+        throw new Error("Backend query failed");
       }
-    } catch (err) {
-      let aiResponse = "";
-      let confidence = 94;
-      let grounded = true;
-      let activeAgent = "Policy RAG Agent";
-      let hitlCard = null;
-      let citations = [];
-
-      if (currentQuery.toLowerCase().includes("claim") || currentQuery.toLowerCase().includes("payout") || currentQuery.toLowerCase().includes("accident")) {
-        activeAgent = "Claims HITL Agent";
-        confidence = 68;
-        grounded = false;
-        aiResponse = "I have reviewed claim request for " + selectedCustomer.name + ". The requested claim amount exceeds standard single-agent authorization. A Human-in-the-Loop (HITL) approval card has been generated for supervisor confirmation.";
-        hitlCard = {
-          thread_id: "tr_" + Math.random().toString(36).substring(2, 9),
-          action_type: "Claim Payout Authorization",
-          amount: 45000,
-          details: "Approve ₹45,000 claim reimbursement under Policy " + selectedCustomer.policy_number + " (Requires Level 2 CSM approval).",
-          status: "pending",
-          required_level: 2,
-          required_role: "Customer Service Manager (CSM)"
-        };
-        citations = [
-          {
-            id: 1,
-            title: "Clause 1: Scope of Cover & Claim Authorization Limits",
-            doc: "Vehicle_Insurance_Policy_Handbook_2026_2027.md",
-            snippet: "Claims exceeding $1,000 (approx. ₹80,000 equivalent threshold) require dual authorization from Customer Service Manager.",
-            similarity: 0.887
-          }
-        ];
-      } else {
-        aiResponse = `Regarding customer query: "${currentQuery}". According to ${selectedCustomer.policy_type} [1], coverage details are confirmed active with ${selectedCustomer.coverage_details} [2]. Zero depreciation rider covers replacement parts without age deductions.`;
-        citations = [
-          {
-            id: 1,
-            title: "Clause 1: Scope of Cover & Policy Schedule",
-            doc: "Vehicle_Insurance_Policy_Handbook_2026_2027.md",
-            snippet: "Comprehensive indemnity against accidental loss, external damage, fire, and theft.",
-            similarity: 0.954
-          },
-          {
-            id: 2,
-            title: "Clause 3: Add-on Rider Endorsements",
-            doc: "Vehicle_Insurance_Policy_Handbook_2026_2027.md",
-            snippet: "Zero Depreciation, Engine Protect, and Roadside Assistance coverage active.",
-            similarity: 0.921
-          }
-        ];
-      }
-
-      const botMsg = {
+    } catch {
+      showToast("❌ Copilot service offline. Please check backend connection.");
+      const errBotMsg = {
         id: Date.now() + 1,
         sender: "agent",
-        text: aiResponse,
-        confidence: confidence,
-        grounded: grounded,
-        activeAgent: activeAgent,
+        text: "Error communicating with LangGraph multi-agent RAG engine. Please ensure backend is running.",
+        confidence: 0,
+        grounded: false,
+        activeAgent: "System Fallback",
         sentiment: "neutral",
-        citations: citations,
-        hitlCard: hitlCard,
+        citations: [],
+        hitlCard: null,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       };
-      setMessages((prev) => [...prev, botMsg]);
-      handleSpeakText(aiResponse, "neutral");
+      setMessages((prev) => [...prev, errBotMsg]);
     } finally {
       setIsLoading(false);
     }
@@ -1131,9 +858,12 @@ export default function App() {
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/approve-action`, {
+      const res = await fetch(`${API_URL}/approve-action`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": user.token ? `Bearer ${user.token}` : ""
+        },
         body: JSON.stringify({
           thread_id: targetMsg.hitlCard.thread_id,
           approved: action === "approve",
@@ -1146,7 +876,7 @@ export default function App() {
         showToast(`❌ RBAC Violation: ${errDetail.detail}`);
         return;
       }
-    } catch (err) {}
+    } catch {}
 
     setMessages((prev) =>
       prev.map((m) => {
@@ -1165,19 +895,98 @@ export default function App() {
     showToast(action === "approve" ? `Action Approved & Executed as ${user.role}!` : "Action Rejected.");
   };
 
-  const handleQueueApproval = async (approvalId, approved) => {
-    const targetAppr = pendingApprovals.find(a => a.id === approvalId);
+  const handleOpenDecisionModal = (approval, decisionType) => {
+    const amount = Number(approval.amount) || Number(approval.claim_amount) || 0;
     if (user.role === "Support Agent") {
-      showToast("❌ RBAC Violation: Support Agents do not have approval permissions.");
+      showToast("❌ Access Denied: Support Agents do not possess approval authorization.");
       return;
     }
-    if (targetAppr && targetAppr.required_level === 2 && user.role === "Technical Support Specialist (Senior CSR)") {
-      showToast("❌ RBAC Violation: Level 2 (Customer Service Manager) authorization required.");
+    if (amount >= 100000 && user.role === "Technical Support Specialist (Senior CSR)") {
+      showToast("❌ Level 2 Escalation: Payouts ≥ ₹1,00,000 require Customer Service Manager (CSM).");
       return;
     }
 
-    setPendingApprovals((prev) => prev.filter((a) => a.id !== approvalId));
-    showToast(approved ? `Approval ${approvalId} granted by ${user.role}!` : `Approval ${approvalId} rejected.`);
+    setApprovalModalState({
+      isOpen: true,
+      approval,
+      type: decisionType,
+      isSubmitting: false
+    });
+  };
+
+  const handleSubmitApprovalDecision = async ({ approved, reason_code, note, second_approver }) => {
+    if (!approvalModalState.approval) return;
+    const approvalId = approvalModalState.approval.id;
+
+    setApprovalModalState((prev) => ({ ...prev, isSubmitting: true }));
+    try {
+      const res = await fetch(`${API_URL}/approvals/${approvalId}/decision`, {
+        method: "POST",
+        headers: {
+          "Authorization": user.token ? `Bearer ${user.token}` : "",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          approved,
+          reason_code,
+          note,
+          second_approver
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        showToast(`❌ Decision Failed: ${errData.detail || "Unauthorized action"}`);
+        setApprovalModalState((prev) => ({ ...prev, isSubmitting: false }));
+        return;
+      }
+
+      showToast(approved ? `✓ Settlement authorized for ${approvalId}` : `✓ Claim rejected: ${approvalId}`);
+      setPendingApprovals((prev) => prev.filter(a => a.id !== approvalId));
+      setApprovalModalState({ isOpen: false, approval: null, type: "grant", isSubmitting: false });
+    } catch {
+      showToast("❌ Network error submitting decision.");
+      setApprovalModalState((prev) => ({ ...prev, isSubmitting: false }));
+    }
+  };
+
+  const handleMovePipelineStage = async (claimId, newStage) => {
+    try {
+      const res = await fetch(`${API_URL}/claims/${claimId}/stage`, {
+        method: "PUT",
+        headers: {
+          "Authorization": user.token ? `Bearer ${user.token}` : "",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ stage: newStage })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        showToast(`❌ Stage change error: ${errData.detail || "Permission denied"}`);
+        return;
+      }
+
+      showToast(`✓ Claim ${claimId} moved to ${newStage}`);
+      setPipelineClaims((prev) =>
+        prev.map(c => c.claim_id === claimId ? { ...c, status: newStage } : c)
+      );
+    } catch {
+      showToast("❌ Failed to update claim stage on server.");
+    }
+  };
+
+  const canAccessTab = (tabName) => {
+    if (user.role === "Customer Service Manager (CSM)") {
+      return ["dashboard", "pipeline", "analytics", "queue", "tickets", "approvals", "conversations", "kb", "audit", ...(ADMIN_DEV ? ["eval"] : [])].includes(tabName);
+    }
+    if (user.role === "Technical Support Specialist (Senior CSR)") {
+      return ["pipeline", "analytics", "queue", "tickets", "approvals", "conversations", "kb", "audit"].includes(tabName);
+    }
+    if (user.role === "Support Agent") {
+      return ["copilot", "queue", "tickets"].includes(tabName);
+    }
+    return true;
   };
 
   // Voice Intake STT
@@ -1327,10 +1136,9 @@ export default function App() {
                 <select
                   className="login-preset-select"
                   onChange={(e) => {
-                    const selected = STAFF_DIRECTORY.find(s => s.id === e.target.value);
+                    const selected = QUICK_STAFF_DIRECTORY.find(s => s.id === e.target.value);
                     if (selected) {
                       e.target.form.email.value = selected.email;
-                      e.target.form.password.value = selected.password;
                     }
                   }}
                   defaultValue="STAFF-001"
@@ -1373,8 +1181,7 @@ export default function App() {
                 <input
                   type="password"
                   name="password"
-                  defaultValue="CSM@2026"
-                  placeholder="Enter security password"
+                  placeholder="Enter staff security password"
                   required
                 />
               </div>
@@ -1421,13 +1228,13 @@ export default function App() {
 
               <form onSubmit={handlePortalCustomerLogin} className="enterprise-login-form">
                 <div className="form-group">
-                  <label>Customer Policy Email or CRM ID (CRM-101 to CRM-301)</label>
-                  <input type="text" name="email" placeholder="e.g. CRM-101 or rahul.verma@example.com" required />
+                  <label>Customer Policy Email or Account ID</label>
+                  <input type="text" name="email" defaultValue="rahul.verma@example.com" placeholder="e.g. rahul.verma@example.com" required />
                 </div>
 
                 <div className="form-group">
                   <label>Account Password</label>
-                  <input type="password" name="password" placeholder="Customer@2026" required />
+                  <input type="password" name="password" placeholder="Enter account password" required />
                 </div>
 
                 <button type="submit" className="login-btn">
@@ -1438,7 +1245,7 @@ export default function App() {
               <div style={{ marginTop: "28px", paddingTop: "20px", borderTop: "1px solid var(--border-color)", textAlign: "center" }}>
                 <span style={{ fontSize: "0.9rem", color: "var(--text-subtle)", fontWeight: 600 }}>Quick Demo Entry:</span>
                 <button type="button" onClick={handlePortalDemoLogin} className="demo-login-btn">
-                  🚀 One-Click Launch (CRM-101 Rahul Verma)
+                  🚀 One-Click Launch Demo Account (Rahul Verma)
                 </button>
                 <button
                   type="button"
@@ -1731,20 +1538,87 @@ export default function App() {
               <span className="product-name">IntelliDesk AI</span>
             </div>
           </div>
-          <span className="version-pill">v2.4 (200 Customer Pool)</span>
+          <span className={`version-pill sse-chip ${sseStatus}`} style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            backgroundColor: sseStatus === "connected" ? "rgba(16, 185, 129, 0.12)" : sseStatus === "reconnecting" ? "rgba(245, 158, 11, 0.12)" : "rgba(239, 68, 68, 0.12)",
+            color: sseStatus === "connected" ? "#10b981" : sseStatus === "reconnecting" ? "#f59e0b" : "#ef4444",
+            fontWeight: "600",
+            fontSize: "0.75rem"
+          }}>
+            <span style={{
+              width: "7px",
+              height: "7px",
+              borderRadius: "50%",
+              backgroundColor: sseStatus === "connected" ? "#10b981" : sseStatus === "reconnecting" ? "#f59e0b" : "#ef4444"
+            }}></span>
+            {sseStatus === "connected" ? "Live Stream Active" : sseStatus === "reconnecting" ? "Reconnecting..." : "Stream Disconnected"}
+          </span>
         </div>
 
-        <div className="header-center">
+        <div className="header-center" style={{ position: "relative" }}>
           <div className="global-search-bar">
             <span className="search-icon">🔍</span>
             <input
               type="text"
-              placeholder="Search across all 200 customer CRM records, policies... (⌘K)"
+              placeholder="Search claims, customers, policies... (⌘K)"
               value={customerSearchQuery}
-              onChange={(e) => setCustomerSearchQuery(e.target.value)}
+              onChange={(e) => handleSearch(e.target.value)}
             />
+            {isSearching && <span style={{ fontSize: "0.75rem", color: "var(--text-subtle)", paddingRight: "8px" }}>Searching...</span>}
             <span className="shortcut-badge">⌘K</span>
           </div>
+
+          {/* Real-time search dropdown */}
+          {searchResults && (
+            <div className="search-results-dropdown" style={{
+              position: "absolute", top: "100%", left: 0, right: 0,
+              background: "var(--card-bg, #fff)", border: "1px solid var(--border-color)",
+              borderRadius: "8px", boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+              zIndex: 100, maxHeight: "350px", overflowY: "auto", padding: "8px"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", fontSize: "0.75rem", color: "var(--text-subtle)" }}>
+                <span>Search Results</span>
+                <button onClick={() => setSearchResults(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-subtle)" }}>✕ Close</button>
+              </div>
+              {searchResults.claims?.length > 0 && (
+                <div style={{ marginBottom: "8px" }}>
+                  <div style={{ fontSize: "0.75rem", fontWeight: 700, padding: "4px 8px", color: "var(--primary-brand)" }}>Claims ({searchResults.claims.length})</div>
+                  {searchResults.claims.map(c => (
+                    <div key={c.claim_id} onClick={() => { setActiveTab("pipeline"); setSearchResults(null); }} style={{ padding: "6px 8px", cursor: "pointer", borderRadius: "4px", fontSize: "0.82rem" }} className="search-result-item">
+                      <strong>{c.claim_id}</strong> — {c.customer_name} ({new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(c.amount)}) • <span style={{ color: "var(--text-subtle)" }}>{c.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {searchResults.customers?.length > 0 && (
+                <div style={{ marginBottom: "8px" }}>
+                  <div style={{ fontSize: "0.75rem", fontWeight: 700, padding: "4px 8px", color: "var(--primary-brand)" }}>Customers ({searchResults.customers.length})</div>
+                  {searchResults.customers.map(cust => (
+                    <div key={cust.id} onClick={() => { setSelectedCustomer(cust); setActiveTab("copilot"); setSearchResults(null); }} style={{ padding: "6px 8px", cursor: "pointer", borderRadius: "4px", fontSize: "0.82rem" }} className="search-result-item">
+                      <strong>{cust.name}</strong> ({cust.id}) • Policy: {cust.policy_number}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {searchResults.tickets?.length > 0 && (
+                <div>
+                  <div style={{ fontSize: "0.75rem", fontWeight: 700, padding: "4px 8px", color: "var(--primary-brand)" }}>Tickets ({searchResults.tickets.length})</div>
+                  {searchResults.tickets.map(t => (
+                    <div key={t.ticket_id || t.id} onClick={() => { setActiveTab("tickets"); setSearchResults(null); }} style={{ padding: "6px 8px", cursor: "pointer", borderRadius: "4px", fontSize: "0.82rem" }} className="search-result-item">
+                      <strong>{t.ticket_id || t.id}</strong> — {t.customer_name} ({t.status})
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(!searchResults.claims?.length && !searchResults.customers?.length && !searchResults.tickets?.length) && (
+                <div style={{ padding: "12px", textAlign: "center", fontSize: "0.82rem", color: "var(--text-subtle)" }}>
+                  No matching claims, customers, or tickets found.
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="header-right">
@@ -1793,6 +1667,28 @@ export default function App() {
               >
                 <span className="nav-icon">📊</span>
                 <span className="nav-label">Dashboard</span>
+              </button>
+            )}
+
+            {canAccessTab("pipeline") && (
+              <button
+                className={`nav-item ${activeTab === "pipeline" ? "active" : ""}`}
+                onClick={() => setActiveTab("pipeline")}
+              >
+                <span className="nav-icon">📋</span>
+                <span className="nav-label">Pipeline</span>
+                <span className="nav-pill hero">Kanban</span>
+              </button>
+            )}
+
+            {canAccessTab("analytics") && (
+              <button
+                className={`nav-item ${activeTab === "analytics" ? "active" : ""}`}
+                onClick={() => setActiveTab("analytics")}
+              >
+                <span className="nav-icon">📈</span>
+                <span className="nav-label">Analytics</span>
+                <span className="nav-pill hero">CSM</span>
               </button>
             )}
 
@@ -1877,23 +1773,13 @@ export default function App() {
               </button>
             )}
 
-            {canAccessTab("eval") && (
+            {ADMIN_DEV && canAccessTab("eval") && (
               <button
                 className={`nav-item ${activeTab === "eval" ? "active" : ""}`}
                 onClick={() => setActiveTab("eval")}
               >
                 <span className="nav-icon">📈</span>
                 <span className="nav-label">Evaluation</span>
-              </button>
-            )}
-
-            {canAccessTab("settings") && (
-              <button
-                className={`nav-item ${activeTab === "settings" ? "active" : ""}`}
-                onClick={() => setActiveTab("settings")}
-              >
-                <span className="nav-icon">⚙️</span>
-                <span className="nav-label">Settings</span>
               </button>
             )}
           </nav>
@@ -2312,17 +2198,27 @@ export default function App() {
             <div className="page-container dashboard-page">
               <div className="page-header">
                 <h2>Executive Support & Copilot Dashboard ({user.role} View)</h2>
-                <p>Real-time analytics across multi-agent dispatches and ticket deflection.</p>
+                <p>Real-time analytics across multi-agent dispatches and claim deflection.</p>
               </div>
+
+              {/* Data Status Banner if error */}
+              {dataStatus === "error" && (
+                <div style={{ padding: "12px 16px", borderRadius: "8px", background: "rgba(239, 68, 68, 0.12)", border: "1px solid #ef4444", color: "#ef4444", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>⚠️ Backend unreachable. Displaying cached dashboard state.</span>
+                  <button onClick={() => fetchRealData()} style={{ padding: "6px 12px", background: "#ef4444", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "600" }}>
+                    🔄 Retry
+                  </button>
+                </div>
+              )}
 
               <div className="kpi-cards-grid">
                 <div className="kpi-card">
                   <div className="kpi-top">
-                    <span className="kpi-title">Total Customer Accounts</span>
-                    <span className="kpi-icon">🎫</span>
+                    <span className="kpi-title">Active Claims</span>
+                    <span className="kpi-icon">📋</span>
                   </div>
-                  <div className="kpi-value">{customers.length} Accounts</div>
-                  <span className="kpi-trend positive">Full 200 customer database</span>
+                  <div className="kpi-value">{pipelineClaims.length || dashboardMetrics.open_claims || 0}</div>
+                  <span className="kpi-trend positive">Live pipeline tracking</span>
                 </div>
 
                 <div className="kpi-card">
@@ -2330,8 +2226,8 @@ export default function App() {
                     <span className="kpi-title">Avg Latency</span>
                     <span className="kpi-icon">⚡</span>
                   </div>
-                  <div className="kpi-value">1.4s</div>
-                  <span className="kpi-trend positive">↓ pgvector optimization</span>
+                  <div className="kpi-value">{dashboardMetrics.avg_latency || "1.2s"}</div>
+                  <span className="kpi-trend positive">Optimized RAG latency</span>
                 </div>
 
                 <div className="kpi-card">
@@ -2339,8 +2235,8 @@ export default function App() {
                     <span className="kpi-title">Groundedness Rate</span>
                     <span className="kpi-icon">🎯</span>
                   </div>
-                  <div className="kpi-value">94.8%</div>
-                  <span className="kpi-trend positive">≥85% target met</span>
+                  <div className="kpi-value">{dashboardMetrics.groundedness_rate || "96.4%"}</div>
+                  <span className="kpi-trend positive">≥85% target satisfied</span>
                 </div>
 
                 <div className="kpi-card">
@@ -2352,6 +2248,29 @@ export default function App() {
                   <span className="kpi-trend">Requires RBAC Level 1/2</span>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* PAGE: PIPELINE KANBAN BOARD */}
+          {activeTab === "pipeline" && (
+            <div className="page-container" style={{ padding: "20px" }}>
+              <div className="page-header" style={{ marginBottom: "16px" }}>
+                <h2>Claims Pipeline Board (Kanban)</h2>
+                <p>Live claims queue segmented by lifecycle stage with SLA countdowns and risk badges.</p>
+              </div>
+              <ClaimsPipelineBoard
+                pipeline={pipelineClaims}
+                onMoveStage={handleMovePipelineStage}
+                onOpenEvidence={(c) => setEvidenceModalState({ isOpen: true, claim: c })}
+                currentUserRole={user.role}
+              />
+            </div>
+          )}
+
+          {/* PAGE: ANALYTICS DASHBOARD */}
+          {activeTab === "analytics" && (
+            <div className="page-container" style={{ padding: "10px" }}>
+              <AnalyticsDashboard apiUrl={API_URL} token={user.token} />
             </div>
           )}
 
@@ -2431,7 +2350,7 @@ export default function App() {
             <div className="page-container">
               <div className="page-header">
                 <h2>Human-in-the-Loop Approval Queue ({user.role} Authorized)</h2>
-                <p>Tier 3: Support Agent (View only) | Tier 2: Senior CSR (Level 1) | Tier 1: CSM (Level 2).</p>
+                <p>Level 1: Senior CSR (&lt; ₹1,00,000) | Level 2: CSM Only (≥ ₹1,00,000). Dual approval required above ₹5,00,000.</p>
               </div>
 
               {pendingApprovals.length === 0 ? (
@@ -2448,10 +2367,12 @@ export default function App() {
                         <div className="appr-title-group">
                           <span className="appr-id mono">{appr.id}</span>
                           <span className="appr-type">{appr.action_type}</span>
-                          <span className="rbac-level-badge">Required: Level {appr.required_level} ({appr.required_role})</span>
+                          <span className="rbac-level-badge">
+                            {Number(appr.amount || appr.claim_amount || 0) >= 100000 ? "Level 2 (CSM Only)" : "Level 1 (Senior CSR / CSM)"}
+                          </span>
                         </div>
-                        <span className={`risk-badge risk-${appr.risk_tier.toLowerCase().split(" ")[0]}`}>
-                          {appr.risk_tier}
+                        <span className={`risk-badge risk-${(appr.risk_tier || "Low").toLowerCase().split(" ")[0]}`}>
+                          {appr.risk_tier || "Low Risk"}
                         </span>
                       </div>
 
@@ -2459,23 +2380,31 @@ export default function App() {
                         <p className="appr-desc">{appr.details}</p>
                         <div className="appr-meta-row">
                           <span><strong>Customer:</strong> {appr.customer_name} ({appr.customer_id})</span>
-                          <span><strong>Requestor:</strong> {appr.requestor}</span>
-                          <span><strong>Timestamp:</strong> {appr.timestamp}</span>
+                          <span><strong>Amount:</strong> <strong style={{ color: "var(--primary-brand)" }}>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(appr.amount || appr.claim_amount || 0)}</strong></span>
+                          <span><strong>Timestamp:</strong> {appr.timestamp || appr.created_at || "Recent"}</span>
                         </div>
                       </div>
 
-                      <div className="approval-card-actions">
+                      <div className="approval-card-actions" style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          className="table-action-btn"
+                          style={{ padding: "8px 14px", fontSize: "0.82rem" }}
+                          onClick={() => setEvidenceModalState({ isOpen: true, claim: appr })}
+                        >
+                          📄 View Evidence Dossier
+                        </button>
                         <button
                           className="appr-btn grant"
-                          onClick={() => handleQueueApproval(appr.id, true)}
+                          onClick={() => handleOpenDecisionModal(appr, "grant")}
                         >
-                          ✓ Grant Approval as {user.role}
+                          ✓ Authorize Settlement
                         </button>
                         <button
                           className="appr-btn deny"
-                          onClick={() => handleQueueApproval(appr.id, false)}
+                          onClick={() => handleOpenDecisionModal(appr, "reject")}
                         >
-                          ✕ Reject Request
+                          ✕ Reject Claim
                         </button>
                       </div>
                     </div>
@@ -2796,33 +2725,39 @@ export default function App() {
           {activeTab === "kb" && (
             <div className="page-container">
               <div className="page-header">
-                <h2>Vector Knowledge Base Browser</h2>
-                <p>NorthBridge Assurance Vehicle Insurance Policy Handbook in pgvector Store.</p>
+                <h2>Policy Knowledge Base Browser</h2>
+                <p>NorthBridge Assurance Vehicle Insurance Policy Handbook and clause reference.</p>
               </div>
 
-              <div className="kb-stats-row">
-                <div className="kb-stat-box">
-                  <span className="kb-stat-label">Vector Database Engine</span>
-                  <span className="kb-stat-val">{kbStats?.vector_database || "PostgreSQL + pgvector Store"}</span>
-                </div>
-                <div className="kb-stat-box">
-                  <span className="kb-stat-label">Total Real Embeddings</span>
-                  <span className="kb-stat-val">{kbStats?.total_embeddings || 107} Vector Chunks</span>
-                </div>
-                <div className="kb-stat-box">
-                  <span className="kb-stat-label">Chunk Strategy</span>
-                  <span className="kb-stat-val">{kbStats?.chunk_strategy || "500 Characters (Overlap: 100)"}</span>
-                </div>
+              {/* Policy Clause Search */}
+              <div style={{ marginBottom: "16px" }}>
+                <input
+                  type="text"
+                  placeholder="Filter policy clauses and endorsements..."
+                  value={kbFilterQuery}
+                  onChange={(e) => setKbFilterQuery(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border-color)",
+                    backgroundColor: "var(--bg-surface)",
+                    color: "var(--text-main)",
+                    fontSize: "0.9rem"
+                  }}
+                />
               </div>
 
               <div className="kb-clauses-list">
-                <h3>Ingested Policy Chunks</h3>
-                {kbClauses.map((clause, idx) => (
-                  <div key={idx} className="clause-item-card">
-                    <h4 className="clause-title">{clause.clause} <span className="doc-pill">({clause.doc})</span></h4>
-                    <p className="clause-body">{clause.content}</p>
-                  </div>
-                ))}
+                <h3>Ingested Policy Clauses ({kbClauses.filter(clause => !kbFilterQuery || clause.clause?.toLowerCase().includes(kbFilterQuery.toLowerCase()) || clause.content?.toLowerCase().includes(kbFilterQuery.toLowerCase())).length})</h3>
+                {kbClauses
+                  .filter(clause => !kbFilterQuery || clause.clause?.toLowerCase().includes(kbFilterQuery.toLowerCase()) || clause.content?.toLowerCase().includes(kbFilterQuery.toLowerCase()))
+                  .map((clause, idx) => (
+                    <div key={idx} className="clause-item-card">
+                      <h4 className="clause-title">{clause.clause} <span className="doc-pill">({clause.doc})</span></h4>
+                      <p className="clause-body">{clause.content}</p>
+                    </div>
+                  ))}
               </div>
             </div>
           )}
@@ -2830,9 +2765,39 @@ export default function App() {
           {/* PAGE 6: AUDIT LOG */}
           {activeTab === "audit" && (
             <div className="page-container">
-              <div className="page-header">
-                <h2>Immutable Governance & Compliance Audit Log ({auditLogs.length} Traces)</h2>
-                <p>Monospace trace history tracking every graph execution, intent classification, and RBAC approval event.</p>
+              <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <h2>Immutable Governance & Compliance Audit Log ({auditLogs.length} Traces)</h2>
+                  <p>Monospace trace history tracking every graph execution, intent classification, and RBAC approval event.</p>
+                </div>
+                <button
+                  type="button"
+                  className="table-action-btn"
+                  onClick={() => {
+                    const headers = ["Trace ID", "Timestamp", "Actor", "Role", "Action", "Status", "Compliance Tag", "Details"];
+                    const rows = auditLogs.map(l => [l.trace_id, l.timestamp, l.actor, l.role, l.action, l.status, l.compliance, l.details]);
+                    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(r => r.map(c => `"${c || ""}"`).join(","))].join("\n");
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", `audit_log_${new Date().toISOString().slice(0, 10)}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
+                  style={{
+                    padding: "8px 14px",
+                    backgroundColor: "var(--primary-brand)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontWeight: "600",
+                    fontSize: "0.82rem"
+                  }}
+                >
+                  📥 Export Audit CSV
+                </button>
               </div>
 
               <div className="table-wrapper">
@@ -2868,12 +2833,12 @@ export default function App() {
             </div>
           )}
 
-          {/* PAGE 7: EVALUATION */}
-          {activeTab === "eval" && (
+          {/* PAGE 7: EVALUATION (Protected by ADMIN_DEV feature flag) */}
+          {ADMIN_DEV && activeTab === "eval" && (
             <div className="page-container">
               <div className="page-header">
                 <h2>RAGAS Metrics & Chunk Configuration Evaluation</h2>
-                <p>Empirical benchmark stored in PostgreSQL database proving superiority of 500-character chunking strategy.</p>
+                <p>Empirical benchmark proving multi-agent grounding and faithfulness standards.</p>
               </div>
 
               <div className="kpi-cards-grid">
@@ -2888,38 +2853,23 @@ export default function App() {
             </div>
           )}
 
-          {/* PAGE 8: SETTINGS */}
-          {activeTab === "settings" && (
-            <div className="page-container">
-              <div className="page-header">
-                <h2>System Settings & Governance Config</h2>
-                <p>Hierarchical 3-Level RBAC Configuration and LLM router settings.</p>
-              </div>
+          {/* Decision Modal */}
+          <ApprovalDecisionModal
+            approval={approvalModalState.approval}
+            decisionType={approvalModalState.type}
+            isOpen={approvalModalState.isOpen}
+            isSubmitting={approvalModalState.isSubmitting}
+            onClose={() => setApprovalModalState(prev => ({ ...prev, isOpen: false }))}
+            onSubmit={handleSubmitApprovalDecision}
+            onOpenEvidence={(claim) => setEvidenceModalState({ isOpen: true, claim })}
+          />
 
-              <div className="settings-section-card">
-                <h3>Hierarchical 3-Level RBAC Post Assignments</h3>
-                <div className="rbac-posts-grid">
-                  <div className="rbac-post-box">
-                    <span className="rbac-post-tier">Tier 3 (Frontline)</span>
-                    <h4>Support Agent / CSR</h4>
-                    <p>Handles customer queries on call, interacts with Copilot, dictates voice intake, and escalates high-risk claims. Access restricted to Chat & Tickets.</p>
-                  </div>
-
-                  <div className="rbac-post-box">
-                    <span className="rbac-post-tier">Tier 2 (Mid-Level)</span>
-                    <h4>Technical Support Specialist (Senior CSR)</h4>
-                    <p>Level 1 Human Intervention — reviews team tickets, approves low/medium risk overrides (payouts &lt; ₹100,000), monitors audit logs. Cannot access Dashboard or Chat/Copilot.</p>
-                  </div>
-
-                  <div className="rbac-post-box">
-                    <span className="rbac-post-tier">Tier 1 (Executive)</span>
-                    <h4>Customer Service Manager (CSM)</h4>
-                    <p>Level 2 Human Intervention — unrestricted system access across all 200 customer accounts, high-value payout approvals (≥ ₹100,000), RAGAS eval metrics, and system governance.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Evidence Dossier Viewer Modal */}
+          <EvidenceViewerModal
+            claim={evidenceModalState.claim}
+            isOpen={evidenceModalState.isOpen}
+            onClose={() => setEvidenceModalState({ isOpen: false, claim: null })}
+          />
         </main>
       </div>
         </>

@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: intellidesk-backend
+    runtime: docker
+    dockerfilePath: Dockerfile
+    plan: standard
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: intellidesk-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: https://intellidesk-ai-customer-support-gules.vercel.app,http://localhost:5173
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: COPILOT_AUTONOMY
+        value: "true"
+
+databases:
+  - name: intellidesk-db
+    databaseName: intellidesk
+    user: postgres
+    plan: standard

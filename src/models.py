@@ -70,6 +70,7 @@ class ClaimModel(Base):
     amount = Column(Float, nullable=False)
     status = Column(String, default="Under Review")
     reason = Column(Text, nullable=False)
+    created_at = Column(String, default=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"), index=True)
 
     customer = relationship("CustomerModel", back_populates="claims")
 
@@ -102,7 +103,26 @@ class ApprovalQueueModel(Base):
     status = Column(String, default="pending") # pending, approved, rejected
     required_level = Column(Integer, default=1) # 1 = Technical Support Specialist (Senior CSR) (Level 1), 2 = Customer Service Manager (CSM) (Level 2)
     required_role = Column(String, default="Technical Support Specialist (Senior CSR)") # "Technical Support Specialist (Senior CSR)" or "Customer Service Manager (CSM)"
-    timestamp = Column(String, default=lambda: datetime.now().strftime("%Y-%m-%d %H:%M"))
+    timestamp = Column(String, default=lambda: datetime.now().strftime("%Y-%m-%d %H:%M"), index=True)
+    reason_code = Column(String, nullable=True)
+    reviewer_note = Column(Text, nullable=True)
+    resolved_by = Column(String, nullable=True)
+    second_approver = Column(String, nullable=True)
+    requires_dual_approval = Column(Boolean, default=False)
+    dual_approved = Column(Boolean, default=False)
+
+class StaffModel(Base):
+    __tablename__ = "staff"
+
+    id = Column(String, primary_key=True, index=True) # e.g. STAFF-001
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=False, unique=True, index=True)
+    role = Column(String, nullable=False) # "Customer Service Manager (CSM)", "Technical Support Specialist (Senior CSR)", "Support Agent"
+    tier = Column(Integer, nullable=False) # 1, 2, 3
+    team = Column(String, nullable=False) # "Executive", "Team Alpha", "Team Bravo"
+    supervisor = Column(String, nullable=True)
+    avatar = Column(String, nullable=True)
+    hashed_password = Column(String, nullable=False)
 
 class AuditLogModel(Base):
     __tablename__ = "audit_logs"
