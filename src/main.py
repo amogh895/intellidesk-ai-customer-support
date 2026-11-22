@@ -144,21 +144,78 @@ def staff_login(req: LoginRequest, db=Depends(get_db)):
         "realm": "staff"
     })
 
+    staff_data = {
+        "staff_id": staff.id,
+        "id": staff.id,
+        "name": staff.name,
+        "email": staff.email,
+        "role": staff.role,
+        "tier": staff.tier,
+        "team": staff.team,
+        "supervisor": staff.supervisor,
+        "avatar": staff.avatar,
+        "realm": "staff"
+    }
+
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user": {
-            "staff_id": staff.id,
-            "id": staff.id,
-            "name": staff.name,
-            "email": staff.email,
-            "role": staff.role,
-            "tier": staff.tier,
-            "team": staff.team,
-            "supervisor": staff.supervisor,
-            "avatar": staff.avatar,
-            "realm": "staff"
-        }
+        "user": staff_data,
+        "staff": staff_data
+    }
+
+class StaffDemoLoginRequest(BaseModel):
+    staff_id: Optional[str] = "STAFF-001"
+    email: Optional[str] = None
+
+@app.post("/api/auth/staff/demo-login")
+def staff_demo_login(req: Optional[StaffDemoLoginRequest] = None, db=Depends(get_db)):
+    """
+    Demo Staff Login — Enables instant showcase login for the specified staff ID or email.
+    Defaults to STAFF-001 (Alex Mercer, CSM).
+    """
+    staff_id = (req.staff_id if req and req.staff_id else "STAFF-001").strip()
+    target_email = req.email.strip() if req and req.email else ""
+    
+    staff = None
+    if target_email:
+        staff = db.query(StaffModel).filter(StaffModel.email.ilike(target_email)).first()
+    if not staff and staff_id:
+        staff = db.query(StaffModel).filter(StaffModel.id == staff_id).first()
+    if not staff:
+        staff = db.query(StaffModel).filter(StaffModel.id == "STAFF-001").first()
+
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff account not found in database.")
+
+    token = create_access_token({
+        "sub": staff.email,
+        "staff_id": staff.id,
+        "name": staff.name,
+        "role": staff.role,
+        "tier": staff.tier,
+        "team": staff.team,
+        "realm": "staff"
+    })
+
+    staff_data = {
+        "staff_id": staff.id,
+        "id": staff.id,
+        "name": staff.name,
+        "email": staff.email,
+        "role": staff.role,
+        "tier": staff.tier,
+        "team": staff.team,
+        "supervisor": staff.supervisor,
+        "avatar": staff.avatar,
+        "realm": "staff"
+    }
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": staff_data,
+        "staff": staff_data
     }
 
 # 2. Customer Realm Authentication (Bcrypt Hashed in Customer DB)

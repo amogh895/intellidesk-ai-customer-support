@@ -272,6 +272,9 @@ export default function App() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [selectedStaffId, setSelectedStaffId] = useState("STAFF-001");
   const [activeCitation, setActiveCitation] = useState(null);
 
   const chatEndRef = useRef(null);
@@ -370,6 +373,8 @@ export default function App() {
   // Login Handler with Role Selection
   const handleLogin = async (e) => {
     e.preventDefault();
+    setIsLoggingIn(true);
+    setLoginError("");
     const form = e.target;
     const email = form.email.value.trim().toLowerCase();
     const password = form.password.value;
@@ -383,12 +388,15 @@ export default function App() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        showToast(`❌ Authentication Failed: ${errData.detail || "Invalid staff credentials"}`);
+        const errMessage = errData.detail || "Invalid staff credentials";
+        setLoginError(errMessage);
+        showToast(`❌ Authentication Failed: ${errMessage}`);
+        setIsLoggingIn(false);
         return;
       }
 
       const data = await res.json();
-      const staff = data.staff;
+      const staff = data.staff || data.user;
       const token = data.access_token;
 
       setUser({
@@ -412,8 +420,64 @@ export default function App() {
 
       showToast(`Authenticated as ${staff.role} — ${staff.name} (${staff.team})`);
       fetchRealData(token);
-    } catch {
+    } catch (err) {
+      console.error("Staff login error:", err);
+      setLoginError("Unable to reach authentication server. Verify backend is running on port 8000.");
       showToast("❌ Unable to reach authentication server. Verify backend status.");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleStaffDemoLogin = async (staffId = selectedStaffId) => {
+    setIsLoggingIn(true);
+    setLoginError("");
+    try {
+      const res = await fetch(`${API_URL}/auth/staff/demo-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staff_id: staffId })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const errMessage = errData.detail || "Staff demo login failed.";
+        setLoginError(errMessage);
+        showToast(`❌ Demo Login Failed: ${errMessage}`);
+        setIsLoggingIn(false);
+        return;
+      }
+
+      const data = await res.json();
+      const staff = data.staff || data.user;
+      const token = data.access_token;
+
+      setUser({
+        name: staff.name,
+        role: staff.role,
+        email: staff.email,
+        team: staff.team,
+        tier: staff.tier,
+        staffId: staff.staff_id || staff.id,
+        supervisor: staff.supervisor || null,
+        avatar: staff.avatar,
+        token: token
+      });
+      sessionStorage.setItem("staff_token", token);
+      setIsAuthenticated(true);
+
+      if (staff.role === "Support Agent") setActiveTab("queue");
+      else if (staff.role === "Technical Support Specialist (Senior CSR)") setActiveTab("tickets");
+      else setActiveTab("dashboard");
+
+      showToast(`Authenticated as ${staff.role} — ${staff.name} (${staff.team})`);
+      fetchRealData(token);
+    } catch (err) {
+      console.error("Staff demo login error:", err);
+      setLoginError("Unable to reach authentication server. Verify backend status on port 8000.");
+      showToast("❌ Unable to reach authentication server. Verify backend status.");
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -1110,6 +1174,9 @@ export default function App() {
   if (appRealm === "staff" && !isAuthenticated) {
     return (
       <div className={`login-page-container ${isDarkMode ? "dark" : ""}`}>
+        {/* Toast Notification Banner on Login Screen */}
+        {toastMessage && <div className="toast-notification">ℹ️ {toastMessage}</div>}
+
         <div className="login-split-card">
           <div className="login-brand-panel">
             <div className="brand-logo-wrap">
@@ -1130,18 +1197,42 @@ export default function App() {
           <div className="login-form-panel">
             <h3 className="form-title">Staff Operations Login</h3>
             <p className="form-subtitle">Enter credentials or select staff member from directory below</p>
+
+            {loginError && (
+              <div
+                style={{
+                  background: "#fee2e2",
+                  border: "1px solid #ef4444",
+                  color: "#991b1b",
+                  padding: "12px 16px",
+                  borderRadius: "8px",
+                  marginBottom: "18px",
+                  fontSize: "0.9rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  fontWeight: 500
+                }}
+              >
+                <span style={{ fontSize: "1.2rem" }}>⚠️</span>
+                <span>{loginError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleLogin} className="enterprise-login-form">
               <div className="form-group">
                 <label>Quick Staff Selector (11 Accounts / 3 Tiers)</label>
                 <select
                   className="login-preset-select"
+                  value={selectedStaffId}
                   onChange={(e) => {
-                    const selected = QUICK_STAFF_DIRECTORY.find(s => s.id === e.target.value);
-                    if (selected) {
+                    const id = e.target.value;
+                    setSelectedStaffId(id);
+                    const selected = QUICK_STAFF_DIRECTORY.find(s => s.id === id);
+                    if (selected && e.target.form) {
                       e.target.form.email.value = selected.email;
                     }
                   }}
-                  defaultValue="STAFF-001"
                 >
                   <optgroup label="Tier 1 — Executive Management">
                     <option value="STAFF-001">👤 Alex Mercer (CSM) — alex.mercer@northbridge.com</option>
@@ -1186,9 +1277,38 @@ export default function App() {
                 />
               </div>
 
-              <button type="submit" className="login-btn">
-                Authenticate & Launch Cockpit
+              <button type="submit" className="login-btn" disabled={isLoggingIn}>
+                {isLoggingIn ? "Authenticating..." : "Authenticate & Launch Cockpit"}
               </button>
+
+              <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid var(--border-color)", textAlign: "center" }}>
+                <p style={{ fontSize: "0.85rem", color: "var(--text-subtle)", marginBottom: "10px" }}>
+                  Instant showcase entry (no password needed):
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleStaffDemoLogin(selectedStaffId)}
+                  className="demo-login-btn"
+                  disabled={isLoggingIn}
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "8px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    fontSize: "0.95rem",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px"
+                  }}
+                >
+                  🚀 Instant 1-Click Launch Cockpit
+                </button>
+              </div>
 
               <button
                 type="button"
