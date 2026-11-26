@@ -17,7 +17,7 @@ const formatNumber = (val) => {
   return new Intl.NumberFormat('en-IN').format(val || 0);
 };
 
-export default function AnalyticsDashboard({ apiUrl, token, onFilterChange }) {
+export default function AnalyticsDashboard({ apiUrl, token }) {
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -35,6 +35,7 @@ export default function AnalyticsDashboard({ apiUrl, token, onFilterChange }) {
     setError(null);
     try {
       const params = new URLSearchParams();
+      if (timeRange) params.append('time_range', timeRange);
       if (selectedTeam !== 'all') params.append('team', selectedTeam);
       if (selectedPolicyType !== 'all') params.append('policy_type', selectedPolicyType);
       if (selectedRiskTier !== 'all') params.append('risk_tier', selectedRiskTier);
@@ -62,7 +63,7 @@ export default function AnalyticsDashboard({ apiUrl, token, onFilterChange }) {
 
   useEffect(() => {
     fetchAnalytics();
-  }, [selectedTeam, selectedPolicyType, selectedRiskTier]);
+  }, [timeRange, selectedTeam, selectedPolicyType, selectedRiskTier]);
 
   // Export Analytics Summary to CSV
   const handleExportCSV = () => {
@@ -83,7 +84,7 @@ export default function AnalyticsDashboard({ apiUrl, token, onFilterChange }) {
       ...(data.approval_aging || []).map(a => [a.bucket, a.count]),
       [],
       ['Top Reasons', 'Reason Code', 'Count'],
-      ...(data.top_reasons || []).map(r => [r.reason, r.count])
+      ...(data.top_reasons || data.top_rejection_reasons || []).map(r => [r.reason, r.count])
     ];
 
     const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(e => e.join(',')).join('\n');
@@ -96,39 +97,67 @@ export default function AnalyticsDashboard({ apiUrl, token, onFilterChange }) {
     document.body.removeChild(link);
   };
 
+  // Card & Container Style Helpers
+  const cardStyle = {
+    backgroundColor: 'var(--bg-surface, #ffffff)',
+    border: '1px solid var(--border-color, #cbd5e1)',
+    borderRadius: '12px',
+    padding: '16px 20px',
+    boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.06))',
+    boxSizing: 'border-box'
+  };
+
   if (isLoading && !data) {
     return (
-      <div className="p-8 space-y-6 animate-pulse">
-        <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-64 mb-6"></div>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ height: '36px', width: '280px', backgroundColor: 'var(--bg-subtle, #f1f5f9)', borderRadius: '8px' }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-28 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+            <div key={i} style={{ height: '100px', backgroundColor: 'var(--bg-subtle, #f1f5f9)', borderRadius: '12px' }} />
           ))}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          <div className="h-72 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
-          <div className="h-72 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
-        </div>
+        <div style={{ height: '240px', backgroundColor: 'var(--bg-subtle, #f1f5f9)', borderRadius: '12px' }} />
       </div>
     );
   }
 
   if (error && !data) {
     return (
-      <div className="p-8">
-        <div className="p-6 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-6 h-6 text-rose-600" />
+      <div style={{ padding: '24px' }}>
+        <div style={{
+          padding: '20px',
+          borderRadius: '12px',
+          backgroundColor: 'var(--red-bg, #fee2e2)',
+          border: '1px solid var(--semantic-red, #b91c1c)',
+          color: 'var(--semantic-red, #b91c1c)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '16px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <AlertCircle width={24} height={24} style={{ color: '#b91c1c' }} />
             <div>
-              <h4 className="font-semibold text-base">Failed to fetch Claim Manager Analytics</h4>
-              <p className="text-sm opacity-90">{error}</p>
+              <div style={{ fontWeight: 700, fontSize: '1rem' }}>Failed to fetch Claim Manager Analytics</div>
+              <div style={{ fontSize: '0.88rem', opacity: 0.9 }}>{error}</div>
             </div>
           </div>
           <button
             onClick={fetchAnalytics}
-            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-medium transition-colors flex items-center gap-2"
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#b91c1c',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
           >
-            <RefreshCw className="w-4 h-4" /> Retry
+            <RefreshCw width={14} height={14} /> Retry
           </button>
         </div>
       </div>
@@ -141,167 +170,248 @@ export default function AnalyticsDashboard({ apiUrl, token, onFilterChange }) {
   const exposure = data?.exposure || [];
   const aging = data?.approval_aging || [];
   const teamPerf = data?.team_performance || [];
-  const confidence = data?.ai_confidence || [];
+  const confidence = data?.ai_confidence || data?.ai_confidence_dist || [];
   const sentiment = data?.sentiment_trend || [];
   const matrix = data?.heatmap_matrix || [];
-  const reasons = data?.top_reasons || [];
+  const reasons = data?.top_reasons || data?.top_rejection_reasons || [];
 
   const maxPipelineCount = Math.max(...pipeline.map(p => p.count), 1);
   const maxAgingCount = Math.max(...aging.map(a => a.count), 1);
   const maxReasonCount = Math.max(...reasons.map(r => r.count), 1);
   const totalExposure = exposure.reduce((sum, item) => sum + (item.value_inr || 0), 0) || 1;
-  const l1Exposure = exposure.find(e => e.level === 'L1')?.value_inr || 0;
-  const l2Exposure = exposure.find(e => e.level === 'L2')?.value_inr || 0;
+  const l1Exposure = exposure.find(e => e.level === 'L1' || e.level?.includes('Level 1'))?.value_inr || 0;
+  const l2Exposure = exposure.find(e => e.level === 'L2' || e.level?.includes('Level 2'))?.value_inr || 0;
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
       
-      {/* Top Header & Filters */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+      {/* Top Header & Filters Bar */}
+      <div style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '16px',
+        paddingBottom: '18px',
+        borderBottom: '1px solid var(--border-color, #cbd5e1)'
+      }}>
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h2 style={{ margin: 0, fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-main, #0f172a)' }}>
               Claims Executive Intelligence
             </h2>
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 flex items-center gap-1">
-              <Sparkles className="w-3 h-3" /> Live SQL Aggregations
+            <span style={{
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              padding: '3px 10px',
+              borderRadius: '20px',
+              backgroundColor: 'var(--primary-light, #eff6ff)',
+              color: 'var(--primary-brand, #1e3a8a)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              <Sparkles width={13} height={13} /> Live Aggregations
             </span>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-muted, #475569)' }}>
             Real-time multi-dimensional claims operations, exposure monitoring, and agent copilot governance.
           </p>
         </div>
 
-        <div className="flex items-center flex-wrap gap-2.5">
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          {/* Time Range Selector */}
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+            style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color, #cbd5e1)',
+              backgroundColor: 'var(--bg-surface, #ffffff)',
+              color: 'var(--text-main, #0f172a)',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="90d">Last 90 Days</option>
+          </select>
+
           {/* Policy Type Filter */}
           <select
             value={selectedPolicyType}
             onChange={(e) => setSelectedPolicyType(e.target.value)}
-            className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300"
+            style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color, #cbd5e1)',
+              backgroundColor: 'var(--bg-surface, #ffffff)',
+              color: 'var(--text-main, #0f172a)',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
           >
             <option value="all">All Policy Types</option>
-            <option value="Comprehensive Auto">Comprehensive Auto</option>
-            <option value="Third-Party Auto">Third-Party Auto</option>
+            <option value="Comprehensive Private Car Policy">Comprehensive Private Car</option>
+            <option value="Third Party + Theft Coverage">Third Party + Theft</option>
+            <option value="Commercial Fleet Vehicle Policy">Commercial Fleet</option>
             <option value="Health Individual">Health Individual</option>
             <option value="Term Life">Term Life</option>
-            <option value="Home & Property">Home & Property</option>
           </select>
 
           {/* Risk Tier Filter */}
           <select
             value={selectedRiskTier}
             onChange={(e) => setSelectedRiskTier(e.target.value)}
-            className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300"
+            style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color, #cbd5e1)',
+              backgroundColor: 'var(--bg-surface, #ffffff)',
+              color: 'var(--text-main, #0f172a)',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
           >
             <option value="all">All Risk Tiers</option>
             <option value="Low">Low Risk</option>
             <option value="Medium">Medium Risk</option>
             <option value="High">High Risk</option>
-            <option value="Critical">Critical Risk</option>
           </select>
 
           {/* Refresh Button */}
           <button
             onClick={fetchAnalytics}
-            className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-colors"
             title="Refresh Metrics"
+            style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color, #cbd5e1)',
+              backgroundColor: 'var(--bg-surface, #ffffff)',
+              color: 'var(--text-main, #0f172a)',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw width={14} height={14} />
           </button>
 
-          {/* CSV Export */}
+          {/* Export CSV Button */}
           <button
             onClick={handleExportCSV}
-            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-medium transition-colors flex items-center gap-1.5 shadow-sm"
+            style={{
+              padding: '8px 14px',
+              borderRadius: '8px',
+              border: 'none',
+              backgroundColor: 'var(--primary-brand, #1e3a8a)',
+              color: '#ffffff',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
           >
-            <FileSpreadsheet className="w-3.5 h-3.5" /> Export CSV
+            <FileSpreadsheet width={14} height={14} /> Export CSV
           </button>
         </div>
       </div>
 
-      {/* 1. KPI STRIP (6 Metrics with Sparkline representation) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+      {/* 1. KPI STRIP (6 Metrics) */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: '14px'
+      }}>
         
         {/* Open Claims */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Open Claims</span>
-            <span className="text-indigo-600"><Layers className="w-4 h-4" /></span>
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted, #475569)' }}>Open Claims</span>
+            <Layers width={16} height={16} style={{ color: '#3b82f6' }} />
           </div>
-          <div className="text-xl font-bold text-slate-900 dark:text-slate-100 mt-2">
+          <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', marginTop: '8px' }}>
             {formatNumber(kpis.open_claims)}
           </div>
-          <div className="flex items-center gap-1 mt-1 text-[11px] text-emerald-600 font-medium">
-            <ArrowDownRight className="w-3 h-3" /> 4.2% vs yesterday
+          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--semantic-green, #047857)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+            <ArrowDownRight width={12} height={12} /> Active in pipeline
           </div>
         </div>
 
-        {/* Pending Payout */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Pending Exposure</span>
-            <span className="text-purple-600"><TrendingUp className="w-4 h-4" /></span>
+        {/* Pending Exposure */}
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted, #475569)' }}>Pending Exposure</span>
+            <TrendingUp width={16} height={16} style={{ color: '#8b5cf6' }} />
           </div>
-          <div className="text-xl font-bold text-slate-900 dark:text-slate-100 mt-2 truncate">
+          <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', marginTop: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {formatINR(kpis.pending_payout_inr)}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle, #64748b)', marginTop: '4px' }}>
             L1: {formatINR(l1Exposure)} • L2: {formatINR(l2Exposure)}
           </div>
         </div>
 
         {/* SLA Breaches */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">SLA Breaches</span>
-            <span className="text-rose-600"><AlertCircle className="w-4 h-4" /></span>
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted, #475569)' }}>SLA Breaches</span>
+            <AlertCircle width={16} height={16} style={{ color: '#ef4444' }} />
           </div>
-          <div className="text-xl font-bold text-rose-600 dark:text-rose-400 mt-2">
+          <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--semantic-red, #b91c1c)', marginTop: '8px' }}>
             {formatNumber(kpis.sla_breaches)}
           </div>
-          <div className="text-[11px] text-rose-500 font-medium mt-1">
+          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#ef4444', marginTop: '4px' }}>
             Target: 0 breaches
           </div>
         </div>
 
         {/* Avg Settlement Hours */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Avg Settlement</span>
-            <span className="text-blue-600"><Clock className="w-4 h-4" /></span>
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted, #475569)' }}>Avg Settlement</span>
+            <Clock width={16} height={16} style={{ color: '#3b82f6' }} />
           </div>
-          <div className="text-xl font-bold text-slate-900 dark:text-slate-100 mt-2">
-            {kpis.avg_settlement_hours || 18.4}h
+          <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', marginTop: '8px' }}>
+            {kpis.avg_settlement_hours || 18.5}h
           </div>
-          <div className="text-[11px] text-emerald-600 font-medium mt-1">
-            -2.6h vs 30d avg
+          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--semantic-green, #047857)', marginTop: '4px' }}>
+            -2.4h vs 30d avg
           </div>
         </div>
 
         {/* Groundedness */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Groundedness</span>
-            <span className="text-emerald-600"><ShieldCheck className="w-4 h-4" /></span>
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted, #475569)' }}>Groundedness</span>
+            <ShieldCheck width={16} height={16} style={{ color: '#10b981' }} />
           </div>
-          <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">
-            {kpis.groundedness_rate || 96.2}%
+          <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--semantic-green, #047857)', marginTop: '8px' }}>
+            {kpis.groundedness_rate || 94.8}%
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">
-            Target ≥ 95.0%
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle, #64748b)', marginTop: '4px' }}>
+            Target &ge; 95.0%
           </div>
         </div>
 
         {/* First Contact Resolution */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">FCR Rate</span>
-            <span className="text-indigo-600"><CheckCircle2 className="w-4 h-4" /></span>
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted, #475569)' }}>FCR Rate</span>
+            <CheckCircle2 width={16} height={16} style={{ color: '#10b981' }} />
           </div>
-          <div className="text-xl font-bold text-slate-900 dark:text-slate-100 mt-2">
-            {kpis.fcr_rate || 88.5}%
+          <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--text-main, #0f172a)', marginTop: '8px' }}>
+            {kpis.fcr_rate || 81.2}%
           </div>
-          <div className="text-[11px] text-emerald-600 font-medium mt-1">
+          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--semantic-green, #047857)', marginTop: '4px' }}>
             +1.8% vs last week
           </div>
         </div>
@@ -309,48 +419,53 @@ export default function AnalyticsDashboard({ apiUrl, token, onFilterChange }) {
       </div>
 
       {/* 2 & 3: PIPELINE FUNNEL & VOLUME/VALUE TREND */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '18px' }}>
         
         {/* Visual 2: Claims Pipeline Funnel */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
             <div>
-              <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
                 Claims Pipeline Distribution
               </h3>
-              <p className="text-xs text-slate-500">Live active claims segmented by operational lifecycle</p>
+              <p style={{ margin: '3px 0 0', fontSize: '0.78rem', color: 'var(--text-muted, #475569)' }}>
+                Active claims segmented by operational lifecycle
+              </p>
             </div>
-            <BarChart3 className="w-4 h-4 text-slate-400" />
+            <BarChart3 width={16} height={16} style={{ color: 'var(--text-subtle, #64748b)' }} />
           </div>
 
-          <div className="space-y-3 pt-2">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {pipeline.map((stage) => {
               const pct = Math.round((stage.count / maxPipelineCount) * 100);
               const isSelected = selectedStageFilter === stage.stage;
+              const barColor =
+                stage.stage === 'Settled' ? '#10b981' :
+                stage.stage === 'Rejected' ? '#ef4444' :
+                stage.stage === 'Awaiting Approval' ? '#8b5cf6' :
+                stage.stage === 'Under Review' ? '#f59e0b' : '#3b82f6';
+
               return (
                 <div
                   key={stage.stage}
                   onClick={() => setSelectedStageFilter(isSelected ? null : stage.stage)}
-                  className={`cursor-pointer p-2 rounded-xl transition-all ${
-                    isSelected ? 'bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                  }`}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    backgroundColor: isSelected ? 'var(--primary-light, #eff6ff)' : 'transparent',
+                    border: isSelected ? '1px solid var(--primary-brand, #1e3a8a)' : '1px solid transparent',
+                    transition: 'all 0.15s ease'
+                  }}
                 >
-                  <div className="flex items-center justify-between text-xs mb-1.5">
-                    <span className="font-medium text-slate-700 dark:text-slate-300">{stage.stage}</span>
-                    <span className="text-slate-500">
-                      <strong>{stage.count}</strong> claims • <span className="font-mono">{formatINR(stage.value_inr)}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--text-main, #0f172a)' }}>{stage.stage}</span>
+                    <span style={{ color: 'var(--text-muted, #475569)' }}>
+                      <strong>{stage.count}</strong> claims • <span style={{ fontFamily: 'monospace' }}>{formatINR(stage.value_inr)}</span>
                     </span>
                   </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden flex">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        stage.stage === 'Settled' ? 'bg-emerald-500' :
-                        stage.stage === 'Rejected' ? 'bg-rose-500' :
-                        stage.stage === 'Awaiting Approval' ? 'bg-purple-500' :
-                        stage.stage === 'Under Review' ? 'bg-amber-500' : 'bg-blue-500'
-                      }`}
-                      style={{ width: `${Math.max(pct, 5)}%` }}
-                    />
+                  <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--bg-subtle, #f1f5f9)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.max(pct, 4)}%`, backgroundColor: barColor, borderRadius: '4px', transition: 'width 0.4s ease' }} />
                   </div>
                 </div>
               );
@@ -359,36 +474,30 @@ export default function AnalyticsDashboard({ apiUrl, token, onFilterChange }) {
         </div>
 
         {/* Visual 3: Claims Volume & Value Trend */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
             <div>
-              <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
                 Claims Velocity & Payout Volume (7-Day Trend)
               </h3>
-              <p className="text-xs text-slate-500">Bars: Inflow claims count • Line: Total authorized value (₹)</p>
+              <p style={{ margin: '3px 0 0', fontSize: '0.78rem', color: 'var(--text-muted, #475569)' }}>
+                Daily claim inflow count and approved payout volume
+              </p>
             </div>
-            <TrendingUp className="w-4 h-4 text-slate-400" />
+            <TrendingUp width={16} height={16} style={{ color: 'var(--text-subtle, #64748b)' }} />
           </div>
 
-          <div className="h-48 flex items-end justify-between gap-3 pt-6 px-2">
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '8px', height: '180px', paddingTop: '20px' }}>
             {trend.map((t, idx) => {
               const maxVal = Math.max(...trend.map(item => item.claims), 10);
               const barHeightPct = Math.round((t.claims / maxVal) * 100);
               return (
-                <div key={idx} className="flex-1 flex flex-col items-center gap-2 group relative">
-                  {/* Tooltip on hover */}
-                  <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap pointer-events-none z-10">
-                    <div>{t.date}</div>
-                    <div className="font-semibold">{t.claims} claims ({formatINR(t.value_inr)})</div>
+                <div key={idx} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', gap: '6px' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--primary-brand, #1e3a8a)' }}>
+                    {t.claims}
                   </div>
-
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-lg flex items-end h-32 overflow-hidden">
-                    <div
-                      className="w-full bg-indigo-500/80 hover:bg-indigo-600 rounded-t-md transition-all duration-300"
-                      style={{ height: `${Math.max(barHeightPct, 12)}%` }}
-                    />
-                  </div>
-                  <span className="text-[10px] text-slate-400 font-medium">
+                  <div style={{ width: '100%', maxWidth: '28px', height: `${Math.max(barHeightPct, 15)}%`, backgroundColor: '#3b82f6', borderRadius: '4px 4px 0 0' }} />
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle, #64748b)', whiteSpace: 'nowrap' }}>
                     {t.date.slice(5)}
                   </span>
                 </div>
@@ -400,73 +509,67 @@ export default function AnalyticsDashboard({ apiUrl, token, onFilterChange }) {
       </div>
 
       {/* 4 & 5: PAYOUT EXPOSURE & APPROVAL AGING */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '18px' }}>
         
         {/* Visual 4: Payout Exposure by Approval Level */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+        <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
                 Payout Exposure by Approval Authority
               </h3>
-              <PieChart className="w-4 h-4 text-slate-400" />
+              <PieChart width={16} height={16} style={{ color: 'var(--text-subtle, #64748b)' }} />
             </div>
-            <p className="text-xs text-slate-500 mb-4">
-              Level 1 (&lt; ₹1L) vs Level 2 (≥ ₹1L) risk authorization split
+            <p style={{ margin: '0 0 16px', fontSize: '0.78rem', color: 'var(--text-muted, #475569)' }}>
+              Level 1 (&lt; ₹1L) vs Level 2 (&ge; ₹1L) authorization split
             </p>
 
-            <div className="flex items-center justify-around py-4">
-              {/* Donut representation */}
-              <div className="relative w-36 h-36 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                  {/* Background circle */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', padding: '12px 0' }}>
+              <div style={{ position: 'relative', width: '120px', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="120" height="120" viewBox="0 0 36 36" style={{ transform: 'rotate(-90deg)' }}>
                   <path
-                    className="text-slate-100 dark:text-slate-800"
-                    strokeWidth="3.8"
-                    stroke="currentColor"
+                    stroke="var(--bg-subtle, #f1f5f9)"
+                    strokeWidth="4"
                     fill="none"
                     d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   />
-                  {/* L1 arc */}
                   <path
-                    className="text-indigo-500"
+                    stroke="#3b82f6"
                     strokeDasharray={`${Math.round((l1Exposure / totalExposure) * 100)}, 100`}
-                    strokeWidth="3.8"
+                    strokeWidth="4"
                     strokeLinecap="round"
-                    stroke="currentColor"
                     fill="none"
                     d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   />
                 </svg>
-                <div className="absolute flex flex-col items-center">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold">Total</span>
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                <div style={{ position: 'absolute', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle, #64748b)', textTransform: 'uppercase', fontWeight: 700 }}>Total</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-main, #0f172a)' }}>
                     {formatINR(totalExposure)}
-                  </span>
+                  </div>
                 </div>
               </div>
 
-              {/* Legend & Breakdown */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-3.5 h-3.5 rounded-full bg-indigo-500" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
                   <div>
-                    <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
                       Level 1: Senior CSR & CSM
                     </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #475569)' }}>
                       {formatINR(l1Exposure)} ({Math.round((l1Exposure / totalExposure) * 100)}%)
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="w-3.5 h-3.5 rounded-full bg-purple-500" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#8b5cf6' }} />
                   <div>
-                    <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                      Level 2: CSM Only (&ge; ₹1 Lakh)
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
+                      Level 2: CSM Only (&ge; ₹1L)
                     </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #475569)' }}>
                       {formatINR(l2Exposure)} ({Math.round((l2Exposure / totalExposure) * 100)}%)
                     </div>
                   </div>
@@ -475,44 +578,40 @@ export default function AnalyticsDashboard({ apiUrl, token, onFilterChange }) {
             </div>
           </div>
 
-          <div className="text-[11px] text-slate-400 p-2 bg-slate-50 dark:bg-slate-800/40 rounded-xl">
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle, #64748b)', padding: '8px 12px', backgroundColor: 'var(--bg-subtle, #f1f5f9)', borderRadius: '8px' }}>
             Dual approval required above ₹5,00,000 threshold.
           </div>
         </div>
 
         {/* Visual 5: Approval Aging & SLA Alert Buckets */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
               Approval Queue Aging & SLA Distribution
             </h3>
-            <Clock className="w-4 h-4 text-slate-400" />
+            <Clock width={16} height={16} style={{ color: 'var(--text-subtle, #64748b)' }} />
           </div>
-          <p className="text-xs text-slate-500 mb-4">
-            Turnaround buckets with strict 24-hour compliance target
+          <p style={{ margin: '0 0 16px', fontSize: '0.78rem', color: 'var(--text-muted, #475569)' }}>
+            Turnaround aging with strict 24-hour compliance target
           </p>
 
-          <div className="space-y-3 pt-1">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {aging.map((b) => {
               const isBreach = b.bucket.includes('24h') || b.bucket.includes('Over');
-              const isWarning = b.bucket.includes('12-24h');
+              const isWarning = b.bucket.includes('12-24h') || b.bucket.includes('4-12h');
               const pct = Math.round((b.count / maxAgingCount) * 100);
+              const barColor = isBreach ? '#ef4444' : isWarning ? '#f59e0b' : '#10b981';
 
               return (
-                <div key={b.bucket} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className={`font-medium ${isBreach ? 'text-rose-600 dark:text-rose-400 font-semibold' : 'text-slate-700 dark:text-slate-300'}`}>
-                      {b.bucket} {isBreach ? '• SLA Breached' : isWarning ? '• SLA Warning' : '• Healthy'}
+                <div key={b.bucket} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                    <span style={{ fontWeight: 600, color: isBreach ? '#ef4444' : 'var(--text-main, #0f172a)' }}>
+                      {b.bucket} {isBreach ? '• SLA Breached' : isWarning ? '• In Progress' : '• Healthy'}
                     </span>
-                    <span className="font-mono text-slate-500">{b.count} approvals</span>
+                    <span style={{ color: 'var(--text-muted, #475569)', fontWeight: 600 }}>{b.count} approvals</span>
                   </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-300 ${
-                        isBreach ? 'bg-rose-500' : isWarning ? 'bg-amber-500' : 'bg-emerald-500'
-                      }`}
-                      style={{ width: `${Math.max(pct, 6)}%` }}
-                    />
+                  <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--bg-subtle, #f1f5f9)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.max(pct, 5)}%`, backgroundColor: barColor, borderRadius: '4px', transition: 'width 0.4s ease' }} />
                   </div>
                 </div>
               );
@@ -523,39 +622,39 @@ export default function AnalyticsDashboard({ apiUrl, token, onFilterChange }) {
       </div>
 
       {/* 6 & 7: TEAM PERFORMANCE & AI CONFIDENCE */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '18px' }}>
         
         {/* Visual 6: Team Performance Matrix */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
               Claims Operations Team Performance
             </h3>
-            <Users className="w-4 h-4 text-slate-400" />
+            <Users width={16} height={16} style={{ color: 'var(--text-subtle, #64748b)' }} />
           </div>
-          <p className="text-xs text-slate-500 mb-4">
-            Comparison of representative handled volume, average handle time (AHT) and draft adoption
+          <p style={{ margin: '0 0 14px', fontSize: '0.78rem', color: 'var(--text-muted, #475569)' }}>
+            Representative handled volume, average handle time (AHT), and escalation rate
           </p>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400">
-                  <th className="pb-2 font-medium">Agent</th>
-                  <th className="pb-2 font-medium">Team</th>
-                  <th className="pb-2 font-medium text-right">Handled</th>
-                  <th className="pb-2 font-medium text-right">AHT (mins)</th>
-                  <th className="pb-2 font-medium text-right">Escalation</th>
+                <tr style={{ borderBottom: '1px solid var(--border-color, #cbd5e1)', color: 'var(--text-subtle, #64748b)' }}>
+                  <th style={{ padding: '8px 4px', fontWeight: 600 }}>Agent</th>
+                  <th style={{ padding: '8px 4px', fontWeight: 600 }}>Team</th>
+                  <th style={{ padding: '8px 4px', fontWeight: 600, textAlign: 'right' }}>Handled</th>
+                  <th style={{ padding: '8px 4px', fontWeight: 600, textAlign: 'right' }}>AHT</th>
+                  <th style={{ padding: '8px 4px', fontWeight: 600, textAlign: 'right' }}>Escalation</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              <tbody>
                 {teamPerf.map((agent, i) => (
-                  <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                    <td className="py-2.5 font-medium text-slate-800 dark:text-slate-200">{agent.agent}</td>
-                    <td className="py-2.5 text-slate-500">{agent.team}</td>
-                    <td className="py-2.5 font-mono text-right">{agent.handled}</td>
-                    <td className="py-2.5 font-mono text-right">{agent.aht_min}m</td>
-                    <td className="py-2.5 font-mono text-right text-indigo-600 dark:text-indigo-400 font-semibold">
+                  <tr key={i} style={{ borderBottom: '1px solid var(--border-subtle, #e2e8f0)' }}>
+                    <td style={{ padding: '8px 4px', fontWeight: 600, color: 'var(--text-main, #0f172a)' }}>{agent.agent}</td>
+                    <td style={{ padding: '8px 4px', color: 'var(--text-muted, #475569)' }}>{agent.team}</td>
+                    <td style={{ padding: '8px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{agent.handled}</td>
+                    <td style={{ padding: '8px 4px', textAlign: 'right', fontFamily: 'monospace' }}>{agent.aht_min}m</td>
+                    <td style={{ padding: '8px 4px', textAlign: 'right', fontWeight: 700, color: 'var(--primary-brand, #1e3a8a)' }}>
                       {agent.escalation_rate}%
                     </td>
                   </tr>
@@ -566,38 +665,33 @@ export default function AnalyticsDashboard({ apiUrl, token, onFilterChange }) {
         </div>
 
         {/* Visual 7: AI Confidence Distribution */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
               AI Copilot Draft Confidence Distribution
             </h3>
-            <Sparkles className="w-4 h-4 text-indigo-500" />
+            <Sparkles width={16} height={16} style={{ color: '#8b5cf6' }} />
           </div>
-          <p className="text-xs text-slate-500 mb-4">
-            Histogram bucketed by 10% ranges (CSM spot-check review queue for &lt;75%)
+          <p style={{ margin: '0 0 14px', fontSize: '0.78rem', color: 'var(--text-muted, #475569)' }}>
+            Histogram bucketed by confidence range (CSM review queue for &lt;75%)
           </p>
 
-          <div className="space-y-3 pt-1">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {confidence.map((bucket) => {
               const count = bucket.count || 0;
-              const isLow = bucket.bucket === '<70%' || bucket.bucket === '70-79%';
+              const isLow = bucket.bucket === '<70%' || bucket.bucket === '50-60%' || bucket.bucket === '60-70%';
               return (
-                <div key={bucket.bucket} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-slate-700 dark:text-slate-300">
-                      Confidence Range: {bucket.bucket}
+                <div key={bucket.bucket} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--text-main, #0f172a)' }}>
+                      {bucket.bucket}
                     </span>
-                    <span className="font-mono text-slate-500">
-                      {count} drafts {isLow && <strong className="text-amber-600">(Review Queue)</strong>}
+                    <span style={{ color: 'var(--text-muted, #475569)', fontWeight: 600 }}>
+                      {count} drafts {isLow && <span style={{ color: '#d97706', fontWeight: 700 }}>(Spot Check)</span>}
                     </span>
                   </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-300 ${
-                        isLow ? 'bg-amber-500' : 'bg-indigo-600'
-                      }`}
-                      style={{ width: `${Math.min(count * 6 + 5, 100)}%` }}
-                    />
+                  <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--bg-subtle, #f1f5f9)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.min(count * 2.2 + 8, 100)}%`, backgroundColor: isLow ? '#f59e0b' : '#3b82f6', borderRadius: '4px' }} />
                   </div>
                 </div>
               );
@@ -608,26 +702,28 @@ export default function AnalyticsDashboard({ apiUrl, token, onFilterChange }) {
       </div>
 
       {/* 8, 9 & 10: SENTIMENT, HEATMAP & TOP DENIAL REASONS */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
         
         {/* Visual 8: Customer Sentiment Trend */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm mb-1">
+        <div style={cardStyle}>
+          <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
             Voice & Chat Sentiment
           </h3>
-          <p className="text-xs text-slate-500 mb-4">Customer tone distribution during claim calls</p>
+          <p style={{ margin: '3px 0 14px', fontSize: '0.78rem', color: 'var(--text-muted, #475569)' }}>
+            Customer tone distribution during claim calls
+          </p>
           
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {sentiment.map((s, i) => (
-              <div key={i} className="space-y-1">
-                <div className="flex items-center justify-between text-[11px] text-slate-500">
-                  <span>{s.date}</span>
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-subtle, #64748b)' }}>
+                  <span>{s.date.slice(5)}</span>
                   <span>{s.positive}% Pos • {s.neutral}% Neu • {s.negative}% Neg</span>
                 </div>
-                <div className="w-full h-3 rounded-full overflow-hidden flex bg-slate-100 dark:bg-slate-800">
-                  <div className="bg-emerald-500 h-full" style={{ width: `${s.positive}%` }} />
-                  <div className="bg-slate-400 h-full" style={{ width: `${s.neutral}%` }} />
-                  <div className="bg-rose-500 h-full" style={{ width: `${s.negative}%` }} />
+                <div style={{ width: '100%', height: '8px', borderRadius: '4px', overflow: 'hidden', display: 'flex', backgroundColor: 'var(--bg-subtle, #f1f5f9)' }}>
+                  <div style={{ width: `${s.positive}%`, height: '100%', backgroundColor: '#10b981' }} />
+                  <div style={{ width: `${s.neutral}%`, height: '100%', backgroundColor: '#94a3b8' }} />
+                  <div style={{ width: `${s.negative}%`, height: '100%', backgroundColor: '#ef4444' }} />
                 </div>
               </div>
             ))}
@@ -635,30 +731,32 @@ export default function AnalyticsDashboard({ apiUrl, token, onFilterChange }) {
         </div>
 
         {/* Visual 9: Policy Type vs Risk Tier Heatmap */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm mb-1">
+        <div style={cardStyle}>
+          <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
             Risk Tier vs Policy Matrix
           </h3>
-          <p className="text-xs text-slate-500 mb-4">Claim concentration density heatmap</p>
+          <p style={{ margin: '3px 0 14px', fontSize: '0.78rem', color: 'var(--text-muted, #475569)' }}>
+            Claim concentration density heatmap
+          </p>
 
-          <div className="grid grid-cols-4 gap-2 text-center text-xs">
-            <div className="font-semibold text-slate-400 pb-1">Type</div>
-            <div className="font-semibold text-slate-400 pb-1">Low</div>
-            <div className="font-semibold text-slate-400 pb-1">Med</div>
-            <div className="font-semibold text-slate-400 pb-1">High</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr 1fr 1fr', gap: '6px', fontSize: '0.75rem', textAlign: 'center' }}>
+            <div style={{ fontWeight: 700, color: 'var(--text-subtle, #64748b)', textAlign: 'left' }}>Type</div>
+            <div style={{ fontWeight: 700, color: '#10b981' }}>Low</div>
+            <div style={{ fontWeight: 700, color: '#f59e0b' }}>Med</div>
+            <div style={{ fontWeight: 700, color: '#ef4444' }}>High</div>
 
             {matrix.map((row, idx) => (
               <React.Fragment key={idx}>
-                <div className="text-left font-medium text-slate-700 dark:text-slate-300 truncate">
-                  {row.policy_type}
+                <div style={{ textAlign: 'left', fontWeight: 600, color: 'var(--text-main, #0f172a)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.policy_type}>
+                  {row.policy_type.replace(" Policy", "")}
                 </div>
-                <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-mono font-medium">
+                <div style={{ padding: '4px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#047857', fontWeight: 700 }}>
                   {row.low}
                 </div>
-                <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 font-mono font-medium">
+                <div style={{ padding: '4px', borderRadius: '4px', backgroundColor: 'rgba(245, 158, 11, 0.12)', color: '#b45309', fontWeight: 700 }}>
                   {row.med}
                 </div>
-                <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 font-mono font-medium">
+                <div style={{ padding: '4px', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#b91c1c', fontWeight: 700 }}>
                   {row.high}
                 </div>
               </React.Fragment>
@@ -667,28 +765,27 @@ export default function AnalyticsDashboard({ apiUrl, token, onFilterChange }) {
         </div>
 
         {/* Visual 10: Top Denial / Escalation Reasons */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm mb-1">
+        <div style={cardStyle}>
+          <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
             Top Denial & Escalation Drivers
           </h3>
-          <p className="text-xs text-slate-500 mb-4">Audited reason code frequency</p>
+          <p style={{ margin: '3px 0 14px', fontSize: '0.78rem', color: 'var(--text-muted, #475569)' }}>
+            Audited reason code frequency
+          </p>
 
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {reasons.map((r) => {
               const pct = Math.round((r.count / maxReasonCount) * 100);
               return (
-                <div key={r.reason} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[180px]">
+                <div key={r.reason} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--text-main, #0f172a)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>
                       {r.reason}
                     </span>
-                    <span className="font-mono text-slate-500">{r.count}</span>
+                    <span style={{ fontWeight: 700, color: 'var(--text-muted, #475569)' }}>{r.count}</span>
                   </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-rose-500 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.max(pct, 8)}%` }}
-                    />
+                  <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--bg-subtle, #f1f5f9)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.max(pct, 8)}%`, backgroundColor: '#ef4444', borderRadius: '4px' }} />
                   </div>
                 </div>
               );

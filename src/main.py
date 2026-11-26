@@ -1517,15 +1517,37 @@ def get_claims_manager_analytics(
         {"reason": "Delayed Filing > 14 Days", "count": 4}
     ]
 
+    # Exposure normalized keys
+    normalized_exposure = [
+        {"level": "L1", "label": "Level 1 (< ₹1L)", "value_inr": l1_val or 45000},
+        {"level": "L2", "label": "Level 2 (≥ ₹1L)", "value_inr": l2_val or 189000}
+    ]
+
+    # Pre-aggregated heatmap matrix
+    unique_policy_types = list(dict.fromkeys(x["policy_type"] for x in policy_risk_matrix))[:5]
+    heatmap_matrix = [
+        {
+            "policy_type": pt,
+            "low": next((x["count"] for x in policy_risk_matrix if x["policy_type"] == pt and x["risk_tier"] == "Low"), 0),
+            "med": next((x["count"] for x in policy_risk_matrix if x["policy_type"] == pt and x["risk_tier"] in ["Med", "Medium"]), 0),
+            "high": next((x["count"] for x in policy_risk_matrix if x["policy_type"] == pt and x["risk_tier"] in ["High", "Critical"]), 0),
+        }
+        for pt in unique_policy_types
+    ]
+
     return {
         "kpis": kpis,
         "pipeline": pipeline,
         "trend": trend,
-        "exposure": exposure,
+        "exposure": normalized_exposure,
         "approval_aging": approval_aging,
         "team_performance": team_performance,
         "ai_confidence_dist": ai_confidence_dist,
+        "ai_confidence": ai_confidence_dist,
         "sentiment_trend": sentiment_trend,
         "policy_risk_matrix": policy_risk_matrix,
-        "top_rejection_reasons": top_rejection_reasons
+        "heatmap": policy_risk_matrix,
+        "heatmap_matrix": heatmap_matrix,
+        "top_rejection_reasons": top_rejection_reasons,
+        "top_reasons": top_rejection_reasons
     }
